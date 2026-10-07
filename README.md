@@ -26,6 +26,10 @@ et effacé avec le bouton « Nouveau ».
 
 « Enregistrer dans Notes » ouvre la feuille de partage d’iOS / Android : choisir **Notes**.
 
+**Enregistrement direct (iPhone)** : sur l’écran Bilan, le réglage « Enregistrement direct dans Notes »
+fait créer la note par un raccourci iOS (app Raccourcis, action « Créer une note » avec « Entrée du raccourci »),
+sans passer par le menu de partage. Les étapes de création du raccourci sont affichées dans l’app.
+
 **Plusieurs victimes** : le bouton en haut à droite liste les bilans en cours (nom, heure, détresses,
 état de détresse vitale), permet d’en ouvrir un nouveau et de passer de l’un à l’autre sans rien perdre.
 Supprimer un bilan une fois enregistré dans Notes.

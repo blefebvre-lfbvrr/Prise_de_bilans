@@ -49,9 +49,47 @@
         <div class="actions">
           <button type="button" class="btn primary" id="btn-share">Enregistrer dans Notes</button>
           <button type="button" class="btn" id="btn-copy-all">Copier tout</button>
+          <button type="button" class="btn" id="btn-share-sheet" hidden>Autre app…</button>
         </div>
         <div id="missing" class="missing" hidden></div>
       </div>
+
+      <details class="group settings" id="direct-settings">
+        <summary>
+          <span class="settings-title">Enregistrement direct dans Notes</span>
+          <span class="pill" id="direct-pill">Désactivé</span>
+        </summary>
+        <div class="settings-body">
+          <p class="hint">
+            Sur iPhone, un raccourci de l’app Raccourcis crée la note à votre place : plus besoin de
+            choisir Notes dans le menu de partage. Tout reste sur le téléphone.
+          </p>
+          <ol class="steps">
+            <li>Ouvrez l’app <strong>Raccourcis</strong> et touchez <strong>+</strong> pour créer un raccourci.</li>
+            <li>Ajoutez l’action <strong>Créer une note</strong> (app Notes).</li>
+            <li>Dans cette action, touchez le texte de la note et choisissez <strong>Entrée du raccourci</strong>.
+              Vous pouvez aussi choisir un dossier, par exemple «&nbsp;Bilans&nbsp;».</li>
+            <li>Renommez le raccourci <strong id="steps-name">PdB</strong> (touchez son nom en haut), puis <strong>OK</strong>.</li>
+            <li>Ici, activez l’option ci-dessous et touchez <strong>Créer une note de test</strong>.
+              La première fois, autorisez Raccourcis à accéder à Notes.</li>
+          </ol>
+          <div class="field">
+            <label for="shortcut-name">Nom du raccourci</label>
+            <input type="text" id="shortcut-name" autocomplete="off" autocapitalize="off" spellcheck="false">
+          </div>
+          <div class="field tri">
+            <span class="label">Utiliser le raccourci pour «&nbsp;Enregistrer&nbsp;»</span>
+            <div class="seg" role="group">
+              <button type="button" class="opt" id="direct-on" aria-pressed="false">Oui</button>
+              <button type="button" class="opt no" id="direct-off" aria-pressed="true">Non</button>
+            </div>
+          </div>
+          <button type="button" class="btn block" id="btn-test-shortcut">Créer une note de test</button>
+          <p class="help">
+            iOS peut demander «&nbsp;Ouvrir dans Raccourcis&nbsp;?&nbsp;» : touchez Ouvrir, puis revenez à l’app d’un glissement.
+          </p>
+        </div>
+      </details>
       <div id="report-sections"></div>
       <div class="end-actions">
         <button type="button" class="btn" id="btn-new-bottom">Nouvelle victime</button>

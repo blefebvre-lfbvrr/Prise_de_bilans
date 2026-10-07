@@ -490,7 +490,55 @@ async function copy(text, msg = 'Copié', btn) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Enregistrement direct : un raccourci iOS (app Raccourcis) crée la note.
+// ---------------------------------------------------------------------------
+const SETTINGS_KEY = 'prise-de-bilans:reglages';
+const settings = { direct: false, shortcut: 'PdB' };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); } catch { /* ignoré */ }
+
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignoré */ }
+}
+
+function runShortcut(text) {
+  const name = settings.shortcut.trim() || 'PdB';
+  window.location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(name)}&input=text&text=${encodeURIComponent(text)}`;
+}
+
+function updateSettingsUI() {
+  $('direct-on').setAttribute('aria-pressed', String(settings.direct));
+  $('direct-off').setAttribute('aria-pressed', String(!settings.direct));
+  const pill = $('direct-pill');
+  pill.textContent = settings.direct ? 'Activé' : 'Désactivé';
+  pill.classList.toggle('on', settings.direct);
+  $('steps-name').textContent = settings.shortcut.trim() || 'PdB';
+  if ($('shortcut-name').value !== settings.shortcut) $('shortcut-name').value = settings.shortcut;
+  $('btn-share').textContent = settings.direct ? 'Créer la note' : 'Enregistrer dans Notes';
+  $('btn-share-sheet').hidden = !settings.direct;
+}
+
+function setupSettings() {
+  $('direct-on').addEventListener('click', () => { settings.direct = true; saveSettings(); updateSettingsUI(); });
+  $('direct-off').addEventListener('click', () => { settings.direct = false; saveSettings(); updateSettingsUI(); });
+  $('shortcut-name').addEventListener('input', (e) => { settings.shortcut = e.target.value; saveSettings(); updateSettingsUI(); });
+  $('btn-test-shortcut').addEventListener('click', () => {
+    runShortcut('Test Prise de bilans\nSi cette note apparaît dans Notes, l’enregistrement direct fonctionne. Vous pouvez la supprimer.');
+  });
+  $('btn-share-sheet').addEventListener('click', () => shareSheet());
+  updateSettingsUI();
+}
+
 async function share() {
+  if (settings.direct) {
+    runShortcut(buildReport(state).full);
+    toast('Création de la note…');
+    return;
+  }
+  return shareSheet();
+}
+
+async function shareSheet() {
   const r = buildReport(state);
   if (navigator.share) {
     try {
@@ -623,6 +671,7 @@ window.addEventListener('scroll', onScroll, { passive: true });
 $('btn-prev').addEventListener('click', () => go(current - 1));
 $('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
 $('btn-share').addEventListener('click', share);
+setupSettings();
 $('btn-copy-all').addEventListener('click', (e) => copy(buildReport(state).full, 'Bilan complet copié', e.currentTarget));
 $('btn-victims').addEventListener('click', openSheet);
 $('btn-sheet-close').addEventListener('click', closeSheet);
