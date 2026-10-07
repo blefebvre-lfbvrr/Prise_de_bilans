@@ -13,13 +13,16 @@
   --no-soft: #eceef1;
   --warn: #8a4b00;
   --warn-soft: #fff3df;
+  --toast-bg: #222;
+  --toast-fg: #fff;
+  --logo-bg: #fff;
   --radius: 12px;
   --tap: 44px;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111317;
     --card: #1b1e24;
     --text: #eceef2;
@@ -33,7 +36,25 @@
     --no-soft: #2a2e36;
     --warn: #ffc277;
     --warn-soft: #3a2a12;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #111317;
+  --card: #1b1e24;
+  --text: #eceef2;
+  --muted: #9aa1ad;
+  --border: #2f343d;
+  --accent: #ef5350;
+  --accent-soft: #3a1c1c;
+  --sel: #7aa2ff;
+  --sel-soft: #1e2b4d;
+  --no: #b6bcc7;
+  --no-soft: #2a2e36;
+  --warn: #ffc277;
+  --warn-soft: #3a2a12;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -68,8 +89,8 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: #fff;
-  color: #c62828;
+  background: var(--logo-bg);
+  color: var(--accent);
   font-weight: 900;
   font-size: 22px;
   line-height: 1;
@@ -255,10 +276,12 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--sel); outli
   max-width: calc(100% - 32px);
   padding: 10px 16px;
   border-radius: 999px;
-  background: #222;
-  color: #fff;
+  background: var(--toast-bg);
+  color: var(--toast-fg);
   font-size: 15px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
 }
+
+.btn-ghost.armed { background: var(--logo-bg); color: var(--accent); }
 
 [hidden] { display: none !important; }

@@ -366,21 +366,25 @@ async function share() {
   await copy(r.full, 'Bilan copié : collez-le dans une nouvelle note');
 }
 
-function download() {
-  const r = buildReport(state);
-  const stamp = `${state.date_pec || ''}_${(state.heure_pec || '').replace(':', 'h')}`;
-  const who = [state.nom, state.prenom].filter(Boolean).join('-').replace(/[^\p{L}\p{N}-]+/gu, '');
-  const a = h('a', {
-    href: URL.createObjectURL(new Blob([r.full], { type: 'text/plain;charset=utf-8' })),
-    download: `bilan_${stamp}${who ? '_' + who : ''}.txt`,
-  });
-  document.body.append(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-}
-
+// Confirmation en deux appuis (les boîtes confirm() ne s'affichent pas partout).
+let resetArmed;
 function reset() {
-  if (!confirm('Effacer le bilan en cours et en commencer un nouveau ?')) return;
+  const btn = document.getElementById('btn-new');
+  if (!resetArmed) {
+    btn.textContent = 'Effacer ?';
+    btn.classList.add('armed');
+    resetArmed = setTimeout(() => {
+      resetArmed = null;
+      btn.textContent = 'Nouveau';
+      btn.classList.remove('armed');
+    }, 3000);
+    toast('Appuyer à nouveau pour effacer le bilan');
+    return;
+  }
+  clearTimeout(resetArmed);
+  resetArmed = null;
+  btn.textContent = 'Nouveau';
+  btn.classList.remove('armed');
   const names = [...bindings.keys()];
   state = defaults();
   names.forEach((n) => (bindings.get(n) || []).forEach((fn) => fn(state[n])));
@@ -397,7 +401,6 @@ document.getElementById('btn-prev').addEventListener('click', () => go(current -
 document.getElementById('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
 document.getElementById('btn-share').addEventListener('click', share);
 document.getElementById('btn-copy-all').addEventListener('click', () => copy(buildReport(state).full, 'Bilan complet copié'));
-document.getElementById('btn-download').addEventListener('click', download);
 document.getElementById('btn-new').addEventListener('click', reset);
 
 let startTab = 0;

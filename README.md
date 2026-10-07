@@ -35,6 +35,8 @@ L’application fonctionne ensuite hors-ligne.
 
 ## Publication (GitHub Pages)
 
+L’application est aussi publiée sur claude.ai : https://claude.ai/artifact/6TQVQCWzBZ2rDXaH5KxD2e (lien privé, copier-coller vers Notes ; le partage direct et le mode hors-ligne n’y sont pas disponibles).
+
 Le workflow `.github/workflows/pages.yml` lance les tests puis publie le site à chaque push sur `main`.
 À activer une fois : *Settings → Pages → Source : GitHub Actions*.
 
