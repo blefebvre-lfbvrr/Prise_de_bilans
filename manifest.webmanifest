@@ -1,0 +1,16 @@
+{
+  "name": "Prise de bilans",
+  "short_name": "Bilans",
+  "description": "Aide à la prise de bilan secouriste, au format ARGOS, sans aucun envoi de données.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#c62828",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
