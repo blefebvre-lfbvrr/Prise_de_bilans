@@ -2,7 +2,9 @@ name: Tests et publication
 
 on:
   push:
-    branches: [main]
+    # Publie depuis main et depuis la branche par défaut actuelle du dépôt
+    # (l’environnement github-pages n’accepte que la branche par défaut).
+    branches: [main, claude/wonderful-clarke-2rksdg]
   pull_request:
   workflow_dispatch:
 
