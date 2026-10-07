@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#c62828"/>
-  <path d="M206 104h100v102h102v100H306v102H206V306H104V206h102z" fill="#fff"/>
+  <rect width="512" height="512" rx="112" fill="#f08a00"/>
+  <text x="256" y="300" text-anchor="middle" font-family="Inter, -apple-system, 'Segoe UI', Arial, sans-serif" font-weight="800" font-size="205" letter-spacing="-6" fill="#15336b">PdB</text>
+  <rect x="160" y="352" width="192" height="23" rx="11.5" fill="#15336b"/>
 </svg>
