@@ -26,6 +26,10 @@ et effacé avec le bouton « Nouveau ».
 
 « Enregistrer dans Notes » ouvre la feuille de partage d’iOS / Android : choisir **Notes**.
 
+**Plusieurs victimes** : le bouton en haut à droite liste les bilans en cours (nom, heure, détresses,
+état de détresse vitale), permet d’en ouvrir un nouveau et de passer de l’un à l’autre sans rien perdre.
+Supprimer un bilan une fois enregistré dans Notes.
+
 ## Installation sur iPhone
 
 1. Ouvrir l’adresse du site dans **Safari**.

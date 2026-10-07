@@ -228,3 +228,23 @@ export function suggestions(s) {
 
   return out.filter((x) => !has(s, x.group, x.v));
 }
+
+// ---------------------------------------------------------------------------
+// Résumé d'une victime (liste des bilans, en-tête de l'écran Bilan).
+// ---------------------------------------------------------------------------
+export function detresseStatus(s) {
+  const pos = SIGNES_DETRESSE.filter((sd) => (s[sd.name] || []).some((k) => k !== 'aucun'));
+  if (pos.length) return { level: 'detresse', text: `Détresse ${joinEt(pos.map((sd) => sd.long))}` };
+  if (SIGNES_DETRESSE.every((sd) => has(s, sd.name, 'aucun'))) return { level: 'ok', text: 'Pas de détresse vitale' };
+  return { level: 'todo', text: 'Détresse à évaluer' };
+}
+
+export function victimSummary(s) {
+  const name = [s.nom ? String(s.nom).toUpperCase() : '', s.prenom].filter(Boolean).join(' ');
+  const who = [s.sexe === 'H' ? 'Homme' : s.sexe === 'F' ? 'Femme' : '', isEmpty(s.age) ? '' : `${s.age} ans`]
+    .filter(Boolean).join(', ');
+  const types = (s.detresse || [])
+    .map((k) => (k === 'autre' && s.detresse_autre ? s.detresse_autre : DETRESSES.find((d) => d.v === k)?.l))
+    .filter(Boolean);
+  return { name, who, heure: s.heure_pec ? fmtTime(s.heure_pec) : '', types };
+}

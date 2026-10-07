@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#c62828">
+  <meta name="theme-color" content="#b3261e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,22 +18,30 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="logo" aria-hidden="true">+</span>
-      <span>Prise de bilans</span>
+      <span class="logo" aria-hidden="true"></span>
+      <span class="brand-name">Prise de bilans</span>
     </div>
-    <button type="button" class="btn-ghost" id="btn-new" title="Effacer et commencer un nouveau bilan">Nouveau</button>
+    <button type="button" class="victim-switch" id="btn-victims" aria-haspopup="dialog" aria-controls="sheet">
+      <span class="victim-dot" id="victim-dot" aria-hidden="true"></span>
+      <span class="victim-label" id="victim-label">Victime 1</span>
+      <span class="victim-count" id="victim-count" hidden></span>
+      <span class="chev" aria-hidden="true"></span>
+    </button>
   </header>
 
-  <nav class="tabs" id="tabs" role="tablist" aria-label="Étapes du bilan"></nav>
+  <div class="stepper">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Étapes du bilan"></nav>
+    <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+  </div>
 
   <main id="main">
     <div id="panels"></div>
     <section class="panel" id="panel-bilan" role="tabpanel" hidden>
+      <div class="summary" id="summary"></div>
       <div class="group">
-        <h2>Bilan</h2>
         <p class="hint">
-          Aucune donnée n’est envoyée sur Internet. Enregistrez le bilan dans l’app Notes
-          via « Partager », puis copiez-collez chaque partie dans ARGOS.
+          Rien n’est envoyé sur Internet. Enregistrez le bilan dans l’app Notes,
+          puis copiez-collez chaque partie dans ARGOS.
         </p>
         <div class="actions">
           <button type="button" class="btn primary" id="btn-share">Enregistrer dans Notes</button>
@@ -42,6 +50,10 @@
         <div id="missing" class="missing" hidden></div>
       </div>
       <div id="report-sections"></div>
+      <div class="end-actions">
+        <button type="button" class="btn" id="btn-new-bottom">Nouvelle victime</button>
+        <button type="button" class="btn danger" id="btn-delete-current">Supprimer ce bilan</button>
+      </div>
     </section>
   </main>
 
@@ -50,7 +62,22 @@
     <button type="button" class="btn primary" id="btn-next">Suivant ›</button>
   </footer>
 
-  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-grip" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <h2 id="sheet-title">Bilans en cours</h2>
+        <button type="button" class="btn mini" id="btn-sheet-close">Fermer</button>
+      </div>
+      <ul class="victims" id="victims"></ul>
+      <button type="button" class="btn primary block" id="btn-new">+ Nouvelle victime</button>
+      <p class="hint small">
+        Les bilans restent uniquement sur ce téléphone. Supprimez-les une fois enregistrés dans Notes.
+      </p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script type="module" src="js/app.js"></script>
 </body>

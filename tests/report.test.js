@@ -47,3 +47,11 @@ test('formulaire vide', () => {
   const r = buildReport({});
   assert.equal(r.full, 'Bilan\n');
 });
+
+test('statut de détresse', async () => {
+  const { detresseStatus } = await import('../js/report.js');
+  assert.equal(detresseStatus({}).level, 'todo');
+  assert.equal(detresseStatus({ sd_neuro: ['aucun'], sd_respi: ['aucun'], sd_circu: ['aucun'] }).level, 'ok');
+  assert.deepEqual(detresseStatus({ sd_neuro: ['aucun'], sd_respi: ['sat'], sd_circu: ['fc'] }),
+    { level: 'detresse', text: 'Détresse respi et circu' });
+});

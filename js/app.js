@@ -1,12 +1,14 @@
 import { TABS, SIGNES_DETRESSE, has } from './schema.js';
-import { buildReport, computeAge, expandFields, gcsTotal, isVisible, suggestions } from './report.js';
-
-const STORAGE_KEY = 'prise-de-bilans:brouillon';
-const TAB_KEY = 'prise-de-bilans:onglet';
+import {
+  buildReport, computeAge, detresseStatus, expandFields, gcsTotal, isVisible, suggestions, victimSummary,
+} from './report.js';
 
 // ---------------------------------------------------------------------------
-// État (uniquement en mémoire + localStorage du téléphone, jamais envoyé)
+// Bilans (un par victime), gardés uniquement dans le navigateur du téléphone.
 // ---------------------------------------------------------------------------
+const STORE_KEY = 'prise-de-bilans:bilans';
+const OLD_KEYS = ['prise-de-bilans:brouillon', 'prise-de-bilans:onglet'];
+
 function defaults() {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -18,30 +20,55 @@ function defaults() {
   };
 }
 
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaults(), ...JSON.parse(raw) };
-  } catch { /* stockage indisponible : on repart d'un bilan vide */ }
-  return defaults();
+function newBilan(store) {
+  store.seq = (store.bilans.length ? store.seq || 0 : 0) + 1;
+  return { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, n: store.seq, tab: 0, state: defaults() };
 }
 
-let state = load();
+function loadStore() {
+  let store = null;
+  try { store = JSON.parse(localStorage.getItem(STORE_KEY)); } catch { /* stockage indisponible */ }
+  if (!store || !Array.isArray(store.bilans) || !store.bilans.length) {
+    store = { seq: 0, bilans: [] };
+    const b = newBilan(store);
+    try {
+      // Reprise du brouillon de la version à bilan unique.
+      const old = localStorage.getItem(OLD_KEYS[0]);
+      if (old) {
+        b.state = { ...defaults(), ...JSON.parse(old) };
+        b.tab = Number(localStorage.getItem(OLD_KEYS[1])) || 0;
+      }
+    } catch { /* ignoré */ }
+    store.bilans.push(b);
+    store.activeId = b.id;
+  }
+  if (!store.bilans.some((b) => b.id === store.activeId)) store.activeId = store.bilans[0].id;
+  return store;
+}
+
+const store = loadStore();
+const activeBilan = () => store.bilans.find((b) => b.id === store.activeId);
+let state = activeBilan().state;
+
 let saveTimer;
 function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignoré */ }
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(store));
+      OLD_KEYS.forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignoré */ }
   }, 250);
 }
 
-// name -> liste de fonctions de mise à jour de l'affichage
+// name -> fonctions de mise à jour de l'affichage
 const bindings = new Map();
 const bind = (name, fn) => {
   if (!bindings.has(name)) bindings.set(name, []);
   bindings.get(name).push(fn);
   fn(state[name]);
 };
+const rebindAll = () => bindings.forEach((fns, name) => fns.forEach((fn) => fn(state[name])));
 // éléments dont la visibilité dépend de l'état
 const conditionals = [];
 
@@ -53,7 +80,7 @@ function setValue(name, v, { silent = false } = {}) {
     if (age !== '') setValue('age', age, { silent: true });
   }
   (bindings.get(name) || []).forEach((fn) => fn(state[name]));
-  if (!silent) refresh();
+  if (!silent) refresh({ animate: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -71,10 +98,20 @@ const h = (tag, attrs = {}, ...children) => {
   return el;
 };
 
+// Rejoue une animation CSS sur un élément.
+function play(el, cls) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  el.addEventListener('animationend', () => el.classList.remove(cls), { once: true });
+}
+
 let uid = 0;
 
 function optButton(label, extraClass, onClick) {
-  return h('button', { type: 'button', class: `opt ${extraClass || ''}`, 'aria-pressed': 'false', onclick: onClick }, label);
+  const b = h('button', { type: 'button', class: `opt ${extraClass || ''}`, 'aria-pressed': 'false' }, label);
+  b.addEventListener('click', () => { play(b, 'just'); onClick(); });
+  return b;
 }
 
 function renderSegmented(f, opts) {
@@ -112,10 +149,9 @@ function renderInput(f, id) {
   if (f.type === 'textarea') {
     el = h('textarea', { id, rows: 3, placeholder: f.placeholder, autocapitalize: 'sentences' });
   } else {
-    const type = f.type === 'text' ? 'text' : f.type;
     el = h('input', {
       id,
-      type,
+      type: f.type === 'text' ? 'text' : f.type,
       placeholder: f.placeholder,
       inputmode: f.type === 'number' ? (f.step ? 'decimal' : 'numeric') : f.inputmode,
       step: f.step,
@@ -129,9 +165,13 @@ function renderInput(f, id) {
   bind(f.name, (v) => {
     const next = v === undefined ? '' : String(v);
     if (el.value !== next) el.value = next;
+    el.classList.toggle('filled', next !== '');
   });
   return el;
 }
+
+// Couleur de l'EVA : du vert (0) au rouge (10).
+const evaColor = (i) => `hsl(${Math.round(140 - i * 14)} 62% 40%)`;
 
 function renderField(f) {
   if (f.type === 'subtitle') return h('h3', {}, f.label);
@@ -152,11 +192,12 @@ function renderField(f) {
     case 'checks':
       wrap = h('div', { class: 'field' }, f.label ? h('span', { class: 'label' }, f.label) : null, renderChecks(f));
       break;
-    case 'eva':
-      wrap = h('div', { class: 'field eva' },
-        h('span', { class: 'label' }, `${f.label} (EVA /10)`),
-        renderSegmented(f, Array.from({ length: 11 }, (_, i) => ({ v: String(i), l: String(i) }))));
+    case 'eva': {
+      const seg = renderSegmented(f, Array.from({ length: 11 }, (_, i) => ({ v: String(i), l: String(i) })));
+      seg.querySelectorAll('.opt').forEach((b, i) => b.style.setProperty('--eva-c', evaColor(i)));
+      wrap = h('div', { class: 'field eva' }, h('span', { class: 'label' }, `${f.label} (EVA /10)`), seg);
       break;
+    }
     case 'gcs':
       wrap = renderGcs();
       break;
@@ -190,7 +231,12 @@ function renderGcs() {
     setValue('gcs_v', '5', { silent: true });
     setValue('gcs_m', '6');
   } }, 'Glasgow 15');
-  const upd = () => { total.textContent = gcsTotal(state) ? `= ${gcsTotal(state)}` : '–'; };
+  const upd = () => {
+    const t = gcsTotal(state);
+    total.textContent = t ? `= ${t}` : '–';
+    total.classList.toggle('full', t === 15);
+    total.classList.toggle('low', !!t && t < 15);
+  };
   ['gcs_y', 'gcs_v', 'gcs_m'].forEach((n) => bind(n, upd));
   return h('div', { class: 'field' },
     h('div', { class: 'tri' }, h('span', { class: 'label' }, 'Glasgow'), set15),
@@ -198,12 +244,14 @@ function renderGcs() {
 }
 
 let suggestBox;
+const sdBlocks = [];
 function renderDetresseGroup(g, section) {
   for (const f of g.fields) {
     const sd = SIGNES_DETRESSE.find((x) => x.name === f.name);
     const el = renderField(f);
     el.classList.add('sd-block');
-    el.querySelector('.label').textContent = `Détresse ${sd.title.toLowerCase()}`;
+    el.querySelector('.label').textContent = `Détresse ${sd.long}`;
+    sdBlocks.push({ el, name: f.name });
     section.append(el);
   }
   suggestBox = h('div', { class: 'suggest', hidden: true });
@@ -222,9 +270,17 @@ function renderGroup(g) {
 }
 
 // ---------------------------------------------------------------------------
-// Onglets
+// Étapes
 // ---------------------------------------------------------------------------
 const ALL_TABS = [...TABS.map((t) => ({ id: t.id, title: t.title })), { id: 'bilan', title: 'Bilan' }];
+const TAB_DONE = {
+  detresse: (s) => (s.detresse || []).length > 0,
+  identite: (s) => !!s.sexe && s.age !== undefined,
+  circonstances: (s) => !!(s.histoire || s.plainte),
+  signes: (s) => !!s.arr_position && SIGNES_DETRESSE.every((sd) => (s[sd.name] || []).length),
+  bilans: (s) => !!(gcsTotal(s) && s.fc && s.fr && s.sat),
+  gestes: (s) => !!((s.gestes || []).length || s.gestes_autre),
+};
 let current = 0;
 
 function renderTabs() {
@@ -240,44 +296,91 @@ function renderTabs() {
     const panel = h('section', { class: 'panel', id: `panel-${t.id}`, role: 'tabpanel', hidden: true });
     t.groups.forEach((g) => panel.append(renderGroup(g)));
     if (t.id === 'signes') {
-      panel.append(h('p', { class: 'hint', id: 'no-spe' },
-        'Choisir une détresse dans l’onglet 1 pour afficher les bilans spécifiques.'));
-      conditionals.push({ el: panel.querySelector('#no-spe'), item: { show: (s) => !(s.detresse || []).length } });
+      const p = h('p', { class: 'hint' }, 'Choisir une détresse à l’étape 1 pour afficher les bilans spécifiques.');
+      panel.append(p);
+      conditionals.push({ el: p, item: { show: (s) => !(s.detresse || []).length } });
     }
     panels.append(panel);
   }
 }
 
-function go(i) {
-  current = Math.max(0, Math.min(ALL_TABS.length - 1, i));
+function go(i, how) {
+  const next = Math.max(0, Math.min(ALL_TABS.length - 1, i));
+  const anim = how || (next > current ? 'from-right' : next < current ? 'from-left' : null);
+  current = next;
   ALL_TABS.forEach((t, j) => {
     document.getElementById(`tab-${t.id}`).setAttribute('aria-selected', String(j === current));
     document.getElementById(`panel-${t.id}`).hidden = j !== current;
   });
-  document.getElementById(`tab-${ALL_TABS[current].id}`).scrollIntoView({ inline: 'center', block: 'nearest' });
+  const panel = document.getElementById(`panel-${ALL_TABS[current].id}`);
+  if (anim) play(panel, anim);
+  const tab = document.getElementById(`tab-${ALL_TABS[current].id}`);
+  const nav = document.getElementById('tabs');
+  nav.scrollTo({ left: tab.offsetLeft - (nav.clientWidth - tab.clientWidth) / 2 });
+
   document.getElementById('btn-prev').disabled = current === 0;
-  const next = document.getElementById('btn-next');
-  next.textContent = current === ALL_TABS.length - 1 ? 'Enregistrer' : current === ALL_TABS.length - 2 ? 'Voir le bilan ›' : 'Suivant ›';
+  const last = current === ALL_TABS.length - 1;
+  document.getElementById('btn-next').textContent = last
+    ? 'Enregistrer'
+    : `${ALL_TABS[current + 1].title} ›`;
   if (ALL_TABS[current].id === 'bilan') renderReport();
   window.scrollTo({ top: 0 });
-  try { localStorage.setItem(TAB_KEY, String(current)); } catch { /* ignoré */ }
+  activeBilan().tab = current;
+  save();
 }
 
 // ---------------------------------------------------------------------------
-// Mise à jour
+// Mise à jour de l'affichage
 // ---------------------------------------------------------------------------
-function refresh() {
-  for (const { el, item } of conditionals) el.hidden = !isVisible(item, state);
+function refresh({ animate = false } = {}) {
+  for (const { el, item } of conditionals) {
+    const visible = isVisible(item, state);
+    if (animate && visible && el.hidden) play(el, 'reveal');
+    el.hidden = !visible;
+  }
+  for (const { el, name } of sdBlocks) {
+    const v = state[name] || [];
+    el.classList.toggle('is-alert', v.some((k) => k !== 'aucun'));
+    el.classList.toggle('is-ok', v.includes('aucun'));
+  }
   updateSuggestions();
+  updateProgress();
+  updateHeader();
   if (ALL_TABS[current]?.id === 'bilan') renderReport();
   save();
+}
+
+function updateProgress() {
+  let done = 0;
+  for (const [id, test] of Object.entries(TAB_DONE)) {
+    const ok = test(state);
+    if (ok) done++;
+    document.getElementById(`tab-${id}`).classList.toggle('done', ok);
+  }
+  document.getElementById('progress-bar').style.width = `${(done / Object.keys(TAB_DONE).length) * 100}%`;
+}
+
+function victimTitle(b) {
+  const { name } = victimSummary(b.state);
+  return name ? `V${b.n} · ${name}` : `Victime ${b.n}`;
+}
+
+function updateHeader() {
+  const b = activeBilan();
+  document.getElementById('victim-label').textContent = victimTitle(b);
+  const count = document.getElementById('victim-count');
+  count.hidden = store.bilans.length < 2;
+  count.textContent = String(store.bilans.length);
+  document.getElementById('victim-dot').className = `victim-dot ${detresseStatus(state).level}`;
+  document.getElementById('btn-victims').setAttribute('aria-label',
+    `${victimTitle(b)}. ${store.bilans.length} bilan${store.bilans.length > 1 ? 's' : ''} en cours. Changer de victime`);
 }
 
 function updateSuggestions() {
   if (!suggestBox) return;
   const list = suggestions(state);
   suggestBox.hidden = !list.length;
-  suggestBox.replaceChildren(h('strong', {}, 'Valeurs anormales relevées dans les bilans :'),
+  suggestBox.replaceChildren(h('strong', {}, 'Valeurs anormales relevées dans les bilans'),
     ...list.map((x) => {
       const sd = SIGNES_DETRESSE.find((g) => g.name === x.group);
       const label = sd.options.find((o) => o.v === x.v).l;
@@ -294,52 +397,79 @@ function missingItems() {
   if (!(state.detresse || []).length) m.push('Type de détresse');
   if (!state.sexe) m.push('Sexe');
   if (state.age === undefined) m.push('Âge');
-  if (!state.histoire && !state.plainte) m.push('Circonstanciel (histoire / plainte)');
-  for (const sd of SIGNES_DETRESSE) if (!(state[sd.name] || []).length) m.push(`Signes de détresse ${sd.long}`);
+  if (!state.histoire && !state.plainte) m.push('Circonstanciel');
+  for (const sd of SIGNES_DETRESSE) if (!(state[sd.name] || []).length) m.push(`Détresse ${sd.long}`);
   if (!gcsTotal(state)) m.push('Glasgow');
-  if (!state.fc) m.push('Fréquence cardiaque');
-  if (!state.ta_g && !state.ta_d) m.push('Tension artérielle');
-  if (!state.fr) m.push('Fréquence respiratoire');
+  if (!state.fc) m.push('FC');
+  if (!state.ta_g && !state.ta_d) m.push('TA');
+  if (!state.fr) m.push('FR');
   if (!state.sat) m.push('Saturation');
-  if (!state.atcd) m.push('Antécédents');
+  if (!state.atcd) m.push('ATCD');
   if (!state.traitements) m.push('Traitements');
   if (!state.allergies) m.push('Allergies');
-  if (!(state.gestes || []).length && !state.gestes_autre) m.push('Gestes effectués');
+  if (!(state.gestes || []).length && !state.gestes_autre) m.push('Gestes');
   return m;
 }
 
-let lastReport;
+function renderSummary() {
+  const b = activeBilan();
+  const v = victimSummary(state);
+  const st = detresseStatus(state);
+  document.getElementById('summary').replaceChildren(
+    h('div', { class: 'who' },
+      h('strong', {}, v.name || `Victime ${b.n}`),
+      h('span', { class: 'meta' }, [v.heure, `n° ${b.n}`].filter(Boolean).join(' · '))),
+    v.who || v.types.length
+      ? h('div', { class: 'chips' }, v.who ? h('span', { class: 'chip' }, v.who) : null,
+        ...v.types.map((t) => h('span', { class: 'chip' }, t)))
+      : null,
+    h('span', { class: `status ${st.level}` }, st.text));
+}
+
+// Texte d'une section, avec les lignes de détresse mises en évidence.
+function reportPre(sec) {
+  const pre = h('pre', {});
+  if (!sec.text) {
+    pre.textContent = 'Non renseigné';
+    pre.classList.add('empty');
+    return pre;
+  }
+  let alert = sec.id === 'signes' && sec.text.startsWith('SIGNES DE DÉTRESSE');
+  sec.text.split('\n').forEach((line, i) => {
+    if (i) pre.append('\n');
+    if (!line) alert = false;
+    pre.append(alert ? h('span', { class: 'alert-line' }, line) : line);
+  });
+  return pre;
+}
+
 function renderReport() {
-  lastReport = buildReport(state);
-  const container = document.getElementById('report-sections');
-  container.replaceChildren(...lastReport.sections.map((sec) => {
-    const pre = h('pre', {}, sec.text || '');
-    if (!sec.text) { pre.textContent = 'Non renseigné'; pre.classList.add('empty'); }
-    return h('article', { class: 'report-card' },
-      h('header', {}, h('h3', {}, sec.title),
-        h('button', { type: 'button', class: 'btn mini', disabled: !sec.text || undefined,
-          onclick: () => copy(sec.text, `${sec.title.toLowerCase()} copié`) }, 'Copier')),
-      pre);
+  renderSummary();
+  const report = buildReport(state);
+  document.getElementById('report-sections').replaceChildren(...report.sections.map((sec) => {
+    const btn = h('button', { type: 'button', class: 'btn mini', disabled: !sec.text || undefined }, 'Copier');
+    btn.addEventListener('click', () => copy(sec.text, `${sec.title.charAt(0)}${sec.title.slice(1).toLowerCase()} copié`, btn));
+    return h('article', { class: 'report-card' }, h('header', {}, h('h3', {}, sec.title), btn), reportPre(sec));
   }));
   const miss = missingItems();
   const box = document.getElementById('missing');
   box.hidden = !miss.length;
-  box.replaceChildren(h('strong', {}, 'À vérifier avant d’enregistrer :'), h('ul', {}, ...miss.map((x) => h('li', {}, x))));
+  box.replaceChildren(h('strong', {}, 'À vérifier avant d’enregistrer'), h('ul', {}, ...miss.map((x) => h('li', {}, x))));
 }
 
 // ---------------------------------------------------------------------------
-// Export : Notes (feuille de partage), presse-papiers, fichier
+// Export : Notes (feuille de partage) et presse-papiers
 // ---------------------------------------------------------------------------
 let toastTimer;
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
-  t.hidden = false;
+  t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
 }
 
-async function copy(text, msg = 'Copié') {
+async function copy(text, msg = 'Copié', btn) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
@@ -350,7 +480,13 @@ async function copy(text, msg = 'Copié') {
     document.execCommand('copy');
     ta.remove();
   }
-  toast(`${msg.charAt(0).toUpperCase()}${msg.slice(1)} ✓`);
+  toast(`${msg} ✓`);
+  if (btn) {
+    const label = btn.textContent;
+    btn.textContent = 'Copié ✓';
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = label; btn.classList.remove('done'); }, 1600);
+  }
 }
 
 async function share() {
@@ -366,47 +502,114 @@ async function share() {
   await copy(r.full, 'Bilan copié : collez-le dans une nouvelle note');
 }
 
-// Confirmation en deux appuis (les boîtes confirm() ne s'affichent pas partout).
-let resetArmed;
-function reset() {
-  const btn = document.getElementById('btn-new');
-  if (!resetArmed) {
-    btn.textContent = 'Effacer ?';
-    btn.classList.add('armed');
-    resetArmed = setTimeout(() => {
-      resetArmed = null;
-      btn.textContent = 'Nouveau';
-      btn.classList.remove('armed');
-    }, 3000);
-    toast('Appuyer à nouveau pour effacer le bilan');
-    return;
-  }
-  clearTimeout(resetArmed);
-  resetArmed = null;
-  btn.textContent = 'Nouveau';
-  btn.classList.remove('armed');
-  const names = [...bindings.keys()];
-  state = defaults();
-  names.forEach((n) => (bindings.get(n) || []).forEach((fn) => fn(state[n])));
-  try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignoré */ }
+// Action en deux appuis (les boîtes confirm() ne s'affichent pas partout).
+function twoStep(btn, armedLabel, action) {
+  const label = btn.textContent;
+  let timer;
+  btn.addEventListener('click', () => {
+    if (!timer) {
+      btn.textContent = armedLabel;
+      btn.classList.add('armed');
+      timer = setTimeout(() => { timer = null; btn.textContent = label; btn.classList.remove('armed'); }, 3000);
+      return;
+    }
+    clearTimeout(timer);
+    timer = null;
+    btn.textContent = label;
+    btn.classList.remove('armed');
+    action();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Plusieurs victimes
+// ---------------------------------------------------------------------------
+function switchTo(id) {
+  store.activeId = id;
+  const b = activeBilan();
+  state = b.state;
+  rebindAll();
+  current = b.tab;
   refresh();
-  go(0);
+  go(b.tab, 'swap');
+}
+
+function addBilan() {
+  const b = newBilan(store);
+  store.bilans.push(b);
+  closeSheet();
+  switchTo(b.id);
+  toast(`Victime ${b.n} : nouveau bilan`);
+}
+
+function deleteBilan(id) {
+  const i = store.bilans.findIndex((b) => b.id === id);
+  if (i < 0) return;
+  const [gone] = store.bilans.splice(i, 1);
+  if (!store.bilans.length) store.bilans.push(newBilan(store));
+  if (gone.id === store.activeId) switchTo(store.bilans[Math.max(0, i - 1)].id);
+  else refresh();
+  if (!document.getElementById('sheet-backdrop').hidden) renderVictims();
+  toast(`Bilan de la victime ${gone.n} supprimé`);
+}
+
+function renderVictims() {
+  const list = document.getElementById('victims');
+  list.replaceChildren(...store.bilans.map((b) => {
+    const v = victimSummary(b.state);
+    const st = detresseStatus(b.state);
+    const del = h('button', { type: 'button', class: 'del', 'aria-label': `Supprimer le bilan de la victime ${b.n}` }, 'Supprimer');
+    const li = h('li', { class: `victim${b.id === store.activeId ? ' active' : ''}` },
+      h('button', { type: 'button', class: 'open', onclick: () => { closeSheet(); if (b.id !== store.activeId) switchTo(b.id); } },
+        h('span', { class: 'line1' }, h('span', { class: 'n' }, `Victime ${b.n}`), v.name ? h('span', { class: 'name' }, v.name) : null),
+        h('span', { class: 'sub' }, [v.who, v.heure, v.types.join(', ')].filter(Boolean).join(' · ') || 'Bilan vide'),
+        h('span', { class: `status ${st.level}` }, st.text)),
+      del);
+    twoStep(del, 'Confirmer', () => {
+      li.classList.add('leaving');
+      setTimeout(() => deleteBilan(b.id), 260);
+    });
+    return li;
+  }));
+}
+
+let sheetTimer;
+function openSheet() {
+  renderVictims();
+  const bd = document.getElementById('sheet-backdrop');
+  clearTimeout(sheetTimer);
+  bd.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => bd.classList.add('open')));
+  document.getElementById('btn-sheet-close').focus({ preventScroll: true });
+}
+
+function closeSheet() {
+  const bd = document.getElementById('sheet-backdrop');
+  if (bd.hidden) return;
+  bd.classList.remove('open');
+  sheetTimer = setTimeout(() => { bd.hidden = true; }, 320);
 }
 
 // ---------------------------------------------------------------------------
 // Démarrage
 // ---------------------------------------------------------------------------
 renderTabs();
-document.getElementById('btn-prev').addEventListener('click', () => go(current - 1));
-document.getElementById('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
-document.getElementById('btn-share').addEventListener('click', share);
-document.getElementById('btn-copy-all').addEventListener('click', () => copy(buildReport(state).full, 'Bilan complet copié'));
-document.getElementById('btn-new').addEventListener('click', reset);
+const $ = (id) => document.getElementById(id);
+$('btn-prev').addEventListener('click', () => go(current - 1));
+$('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
+$('btn-share').addEventListener('click', share);
+$('btn-copy-all').addEventListener('click', (e) => copy(buildReport(state).full, 'Bilan complet copié', e.currentTarget));
+$('btn-victims').addEventListener('click', openSheet);
+$('btn-sheet-close').addEventListener('click', closeSheet);
+$('btn-new').addEventListener('click', addBilan);
+$('btn-new-bottom').addEventListener('click', addBilan);
+twoStep($('btn-delete-current'), 'Confirmer la suppression', () => deleteBilan(store.activeId));
+$('sheet-backdrop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeSheet(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
-let startTab = 0;
-try { startTab = Number(localStorage.getItem(TAB_KEY)) || 0; } catch { /* ignoré */ }
+current = activeBilan().tab || 0;
 refresh();
-go(startTab);
+go(current, 'swap');
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
