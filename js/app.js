@@ -368,7 +368,8 @@ const svg = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 const RAIL = {
   detresse: { short: 'Détresse', icon: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>' },
   identite: { short: 'Identité', icon: '<rect width="18" height="14" x="3" y="5" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16.5a3 3 0 0 1 6 0"/><path d="M15 10h3"/><path d="M15 14h3"/>' },
-  circonstances: { short: 'Circonst.', icon: '<path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>' },
+  // \u00AD : coupure possible « Circons- / tances » si la barre est étroite.
+  circonstances: { short: 'Circons\u00ADtances', icon: '<path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>' },
   signes: { short: 'Signes', icon: '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>' },
   bilans: { short: 'Bilans', icon: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>' },
   gestes: { short: 'Gestes', icon: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 6v12"/><path d="M18 6v12"/><path d="M10 10h.01"/><path d="M14 10h.01"/><path d="M10 14h.01"/><path d="M14 14h.01"/>' },
@@ -414,6 +415,21 @@ function renderTabs() {
 }
 
 // Pastille orange qui glisse sous l'étape active.
+// Noms d'étapes jamais coupés : si l'un dépasse (selon le modèle et la police du
+// téléphone), on réduit la taille de tous les noms jusqu'à ce que chacun tienne.
+function fitRailLabels() {
+  const rail = $('tabs');
+  const labels = [...rail.querySelectorAll('.lbl')].filter((l) => l.offsetParent);
+  rail.style.removeProperty('--rail-font-fit');
+  if (!labels.length) return;
+  const overflows = () => labels.some((l) => l.scrollWidth > l.clientWidth + 0.5 || l.scrollHeight > l.clientHeight + 0.5);
+  let size = parseFloat(getComputedStyle(labels[0]).fontSize);
+  while (overflows() && size > 7) {
+    size -= 0.25;
+    rail.style.setProperty('--rail-font-fit', `${size}px`);
+  }
+}
+
 function moveIndicator() {
   const rail = $('tabs');
   rail.style.setProperty('--n', String(ALL_TABS.length));
@@ -768,6 +784,7 @@ function closeSheet() {
 // Démarrage
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
+window.addEventListener('resize', () => fitRailLabels());
 
 
 renderTabs();
@@ -785,6 +802,7 @@ $('sheet-backdrop').addEventListener('click', (e) => { if (e.target === e.curren
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
 current = activeBilan().tab || 0;
+fitRailLabels();
 refresh();
 go(current, 'swap');
 
