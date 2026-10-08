@@ -20,8 +20,10 @@ et effacé avec le bouton « Nouveau ».
    ATCD / traitements / allergies. Les valeurs anormales (FC, Sat, Glasgow…) sont signalées et peuvent
    être cochées comme signes de détresse en un geste.
 6. **Gestes** effectués et devenir.
-7. **Bilan** : texte prêt à coller, découpé en IDENTITÉ / CIRCONSTANCIEL / SIGNES PARTICULIERS /
-   GESTES EFFECTUÉS (un bouton « Copier » par partie). Les **signes de détresse sont placés en premier**
+7. **Bilan complémentaire** (facultatif) : une série de constantes horodatée à chaque contrôle,
+   reprise à la fin des signes particuliers.
+8. **Bilan** : texte prêt à coller, découpé en IDENTITÉ / CIRCONSTANCIEL / SIGNES PARTICULIERS /
+   GESTES EFFECTUÉS (un bouton « Copier » par partie, et un par champ d’identité). Les **signes de détresse sont placés en premier**
    dans les signes particuliers. Une liste « À vérifier » rappelle ce qui manque.
 
 « Enregistrer dans Notes » ouvre la feuille de partage d’iOS / Android : choisir **Notes**.
