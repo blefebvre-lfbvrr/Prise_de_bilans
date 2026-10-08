@@ -121,6 +121,7 @@ body {
   /* L'écran entier est figé (pas de rebond iOS) : seul <main> défile. */
   position: fixed;
   inset: 0;
+  height: var(--app-h, auto); /* hauteur réelle de l'écran sur iPhone (app installée) */
   overflow: hidden;
   overscroll-behavior: none;
   margin: 0;
@@ -270,7 +271,15 @@ button:disabled { cursor: default; opacity: .45; }
 .rail .tab[aria-selected="true"] svg { animation: pop .4s var(--ease); }
 .rail .ico { position: relative; display: block; width: var(--rail-ico); height: var(--rail-ico); }
 .rail .ico svg { display: block; width: 100%; height: 100%; }
-.rail .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail .lbl {
+  max-width: 100%;
+  overflow: hidden;
+  text-align: center;
+  /* Jusqu'à deux lignes : le nom n'est jamais coupé par « … ». */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 
 /* Pastille bleue « étape remplie » */
 .tick {
@@ -501,7 +510,18 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
 .missing li { padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
 
 /* Bilan complémentaire : séries de constantes */
-.surv-empty { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+.surv-empty { margin: 0 0 12px; color: var(--muted); font-size: 14px; text-align: center; }
+.surv-ref {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--no-soft);
+}
+.surv-ref-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.surv-ref-time { font-variant-numeric: tabular-nums; text-transform: none; }
+.surv-ref-vals { display: flex; flex-wrap: wrap; gap: 6px; }
+.surv-ref-vals .chip { background: var(--card); font-variant-numeric: tabular-nums; }
+.surv-ref-empty { margin: 0; color: var(--muted); font-size: 14px; }
 .surv-list { display: grid; gap: 12px; margin-bottom: 12px; }
 .surv-card {
   min-width: 0;

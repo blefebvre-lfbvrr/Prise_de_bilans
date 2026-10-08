@@ -827,7 +827,7 @@ export const TABS = [
       {
         id: 'complementaire',
         title: 'Bilan complémentaire',
-        hint: 'Une nouvelle série de constantes à chaque contrôle, avec son heure.',
+        hint: 'Ajoutez une série de constantes à chaque contrôle : elle est datée à l’heure du moment.',
         fields: [{ type: 'surveillance', name: 'surv' }],
       },
     ],

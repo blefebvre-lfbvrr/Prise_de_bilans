@@ -251,7 +251,9 @@ const nowHHMM = () => new Date().toTimeString().slice(0, 5);
 
 function renderSurveillance(f) {
   const list = h('div', { class: 'surv-list' });
-  const empty = h('p', { class: 'surv-empty' }, 'Aucun contrôle pour l’instant. Ajoutez une série à chaque nouvelle prise de constantes.');
+  const empty = h('p', { class: 'surv-empty' }, 'Aucun contrôle pour l’instant.');
+  const ref = h('div', { class: 'surv-ref' });
+  updateSurvRef = () => renderSurvRef(ref);
   const add = h('button', { type: 'button', class: 'btn primary block' }, '+ Nouvelle série de constantes');
   const entries = () => state[f.name] || (state[f.name] = []);
 
@@ -306,7 +308,29 @@ function renderSurveillance(f) {
     refresh();
   });
   bind(f.name, () => draw());
-  return h('div', { class: 'field surv' }, empty, list, add);
+  return h('div', { class: 'field surv' }, ref, list, empty, add);
+}
+
+// Rappel des constantes du bilan initial (étape Bilans), pour suivre l'évolution.
+let updateSurvRef = () => {};
+function renderSurvRef(el) {
+  const s = state;
+  const parts = [
+    s.fc && `FC ${s.fc}`,
+    (s.ta_g || s.ta_d) && `TA ${s.ta_g || s.ta_d}`,
+    s.fr && `FR ${s.fr}`,
+    s.sat && `Sat ${s.sat} %${s.sat_sous === 'O2' ? ' O2' : ''}`,
+    gcsTotal(s) && `Glasgow ${gcsTotal(s)}`,
+    s.temp && `${s.temp}°`,
+    s.gly && `Gly ${s.gly}`,
+  ].filter(Boolean);
+  el.replaceChildren(
+    h('div', { class: 'surv-ref-head' },
+      h('span', {}, 'Bilan initial'),
+      h('span', { class: 'surv-ref-time' }, s.heure_pec ? s.heure_pec.replace(':', 'h') : '')),
+    parts.length
+      ? h('div', { class: 'surv-ref-vals' }, ...parts.map((p) => h('span', { class: 'chip' }, p)))
+      : h('p', { class: 'surv-ref-empty' }, 'Constantes à saisir à l’étape Bilans.'));
 }
 
 let suggestBox;
@@ -346,7 +370,7 @@ const RAIL = {
   signes: { short: 'Signes', icon: '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>' },
   bilans: { short: 'Bilans', icon: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>' },
   gestes: { short: 'Gestes', icon: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 6v12"/><path d="M18 6v12"/><path d="M10 10h.01"/><path d="M14 10h.01"/><path d="M10 14h.01"/><path d="M14 14h.01"/>' },
-  complementaire: { short: 'Complém.', icon: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>' },
+  complementaire: { short: 'Bilan compl.', icon: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>' },
   bilan: { short: 'Bilan', icon: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/>' },
 };
 const ALL_TABS = [...TABS.map((t) => ({ id: t.id, title: t.title })), { id: 'bilan', title: 'Bilan' }];
@@ -432,6 +456,7 @@ function refresh({ animate = false } = {}) {
     el.classList.toggle('is-ok', v.includes('aucun'));
   }
   updateSuggestions();
+  updateSurvRef();
   updateProgress();
   updateHeader();
   if (ALL_TABS[current]?.id === 'bilan') renderReport();
@@ -740,6 +765,17 @@ function closeSheet() {
 // Démarrage
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
+
+function fitStandaloneHeight() {
+  if (!(navigator.standalone && /iPhone/.test(navigator.userAgent))) return;
+  const portrait = matchMedia('(orientation: portrait)').matches;
+  const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+  document.documentElement.style.setProperty('--app-h', `${h}px`);
+}
+fitStandaloneHeight();
+window.addEventListener('resize', fitStandaloneHeight);
+window.addEventListener('orientationchange', fitStandaloneHeight);
+
 renderTabs();
 $('btn-prev').addEventListener('click', () => go(current - 1));
 $('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
