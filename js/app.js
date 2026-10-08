@@ -769,16 +769,6 @@ function closeSheet() {
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
 
-function fitStandaloneHeight() {
-  const installed = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  if (!(installed && /iPhone/.test(navigator.userAgent))) return;
-  const portrait = matchMedia('(orientation: portrait)').matches;
-  const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-  document.documentElement.style.setProperty('--app-h', `${h}px`);
-}
-fitStandaloneHeight();
-window.addEventListener('resize', fitStandaloneHeight);
-window.addEventListener('orientationchange', fitStandaloneHeight);
 
 renderTabs();
 $('btn-prev').addEventListener('click', () => go(current - 1));

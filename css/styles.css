@@ -121,7 +121,6 @@ body {
   /* L'écran entier est figé (pas de rebond iOS) : seul <main> défile. */
   position: fixed;
   inset: 0;
-  height: var(--app-h, auto); /* hauteur réelle de l'écran sur iPhone (app installée) */
   overflow: hidden;
   overscroll-behavior: none;
   margin: 0;
