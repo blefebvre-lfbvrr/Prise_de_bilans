@@ -817,4 +817,7 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
   .checks.big .opt:last-child:nth-child(odd) { grid-column: auto; }
 }
 
+/* Interrupteur caché servant uniquement à la vibration sur iPhone */
+.haptic { position: fixed; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+
 [hidden] { display: none !important; }

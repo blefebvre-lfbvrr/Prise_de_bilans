@@ -416,6 +416,22 @@ function renderTabs() {
 
 // Pastille orange qui glisse sous l'étape active.
 // ---------------------------------------------------------------------------
+// Vibration légère au changement d'étape. Android : API de vibration standard.
+// iPhone (pas d'API de vibration) : Safari fait vibrer quand on bascule un
+// interrupteur natif <input type="checkbox" switch> ; on en bascule un, caché.
+// ---------------------------------------------------------------------------
+let hapticLabel = null;
+function haptic() {
+  if (typeof navigator.vibrate === 'function') { navigator.vibrate(8); return; }
+  if (!hapticLabel) {
+    hapticLabel = h('label', { class: 'haptic', 'aria-hidden': 'true' },
+      h('input', { type: 'checkbox', switch: true, tabindex: '-1' }));
+    document.body.append(hapticLabel);
+  }
+  hapticLabel.click();
+}
+
+// ---------------------------------------------------------------------------
 // Glisser le doigt sur la barre de gauche : l'étape sous le doigt s'ouvre en direct
 // (comme l'index des Contacts), avec une bulle indiquant l'étape survolée.
 // ---------------------------------------------------------------------------
@@ -458,7 +474,7 @@ function scrubFrame() {
     scrub.target = i;
     $('tabs').style.setProperty('--i', String(i));
     ALL_TABS.forEach((t, j) => document.getElementById(`tab-${t.id}`).setAttribute('aria-selected', String(j === i)));
-    if (navigator.vibrate) navigator.vibrate(5);
+    haptic();
     if (!scrub.panelTimer) scrub.panelTimer = setTimeout(syncScrubPanel, 70);
   }
   placeBubble(i, scrub.y);
@@ -541,6 +557,9 @@ function moveIndicator() {
 
 function go(i, how) {
   const next = Math.max(0, Math.min(ALL_TABS.length - 1, i));
+  // Vibration pour un changement voulu (appui sur une étape, Précédent / Suivant) ;
+  // pendant le glissement, elle est déjà donnée à chaque étape survolée.
+  if (!how && next !== current) haptic();
   const scrubbing = how === 'scrub';
   const anim = scrubbing ? null : how || (next > current ? 'from-below' : next < current ? 'from-above' : null);
   current = next;
