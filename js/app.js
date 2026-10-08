@@ -399,7 +399,7 @@ function renderTabs() {
     ico.append(h('span', { class: 'tick', 'aria-hidden': 'true' }));
     nav.append(h('button', {
       type: 'button', class: 'tab', role: 'tab', id: `tab-${t.id}`, 'aria-controls': `panel-${t.id}`,
-      'aria-label': `${i + 1}. ${t.title}`, onclick: () => go(i),
+      'aria-label': `${i + 1}. ${t.title}`, onclick: () => { if (!scrub.justEnded) go(i); },
     }, ico, h('span', { class: 'lbl' }, RAIL[t.id].short)));
   });
   for (const t of TABS) {
@@ -415,6 +415,78 @@ function renderTabs() {
 }
 
 // Pastille orange qui glisse sous l'étape active.
+// ---------------------------------------------------------------------------
+// Glisser le doigt sur la barre de gauche : l'étape sous le doigt s'ouvre en direct
+// (comme l'index des Contacts), avec une bulle indiquant l'étape survolée.
+// ---------------------------------------------------------------------------
+const scrub = { id: null, startY: 0, active: false, justEnded: false, bubble: null };
+
+function tabIndexAt(y) {
+  const tabs = [...$('tabs').querySelectorAll('.tab')];
+  const first = tabs[0].getBoundingClientRect();
+  const last = tabs[tabs.length - 1].getBoundingClientRect();
+  if (y <= first.top) return 0;
+  if (y >= last.bottom) return tabs.length - 1;
+  const i = tabs.findIndex((tab) => { const r = tab.getBoundingClientRect(); return y >= r.top && y < r.bottom + 2; });
+  return i < 0 ? current : i;
+}
+
+function showBubble(i, y) {
+  const b = scrub.bubble;
+  const t = ALL_TABS[i];
+  if (b.dataset.i !== String(i)) {
+    b.dataset.i = String(i);
+    b.innerHTML = svg(RAIL[t.id].icon);
+    b.append(h('span', {}, t.title));
+    if (b.classList.contains('show')) play(b, 'bump');
+  }
+  const rail = $('tabs').getBoundingClientRect();
+  const half = b.offsetHeight / 2;
+  b.style.top = `${Math.min(Math.max(y, rail.top + half), rail.bottom - half) - half}px`;
+  b.classList.add('show');
+}
+
+function setupRailScrub() {
+  const rail = $('tabs');
+  scrub.bubble = h('div', { class: 'scrub-bubble', 'aria-hidden': 'true' });
+  document.body.append(scrub.bubble);
+
+  rail.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    scrub.id = e.pointerId;
+    scrub.startY = e.clientY;
+    scrub.active = false;
+  });
+  rail.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== scrub.id) return;
+    if (!scrub.active) {
+      if (Math.abs(e.clientY - scrub.startY) < 8) return;
+      scrub.active = true;
+      rail.setPointerCapture(e.pointerId);
+      document.body.classList.add('scrubbing');
+    }
+    const i = tabIndexAt(e.clientY);
+    if (i !== current) {
+      go(i, i > current ? 'scrub-down' : 'scrub-up');
+      if (navigator.vibrate) navigator.vibrate(5);
+    }
+    showBubble(i, e.clientY);
+  });
+  const end = (e) => {
+    if (e.pointerId !== scrub.id) return;
+    scrub.id = null;
+    if (!scrub.active) return;
+    scrub.active = false;
+    // Le relâchement déclenche un « click » sur l'étape d'origine : on l'ignore.
+    scrub.justEnded = true;
+    setTimeout(() => { scrub.justEnded = false; }, 350);
+    document.body.classList.remove('scrubbing');
+    scrub.bubble.classList.remove('show');
+  };
+  rail.addEventListener('pointerup', end);
+  rail.addEventListener('pointercancel', end);
+}
+
 // Noms d'étapes jamais coupés : si l'un dépasse (selon le modèle et la police du
 // téléphone), on réduit la taille de tous les noms jusqu'à ce que chacun tienne.
 function fitRailLabels() {
@@ -788,6 +860,7 @@ window.addEventListener('resize', () => fitRailLabels());
 
 
 renderTabs();
+setupRailScrub();
 $('btn-prev').addEventListener('click', () => go(current - 1));
 $('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
 $('btn-share').addEventListener('click', share);
