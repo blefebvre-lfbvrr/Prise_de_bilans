@@ -329,17 +329,21 @@ main {
 
 .panel.from-below { animation: slide-up .32s var(--ease); }
 .panel.from-above { animation: slide-down .32s var(--ease); }
-.panel.scrub-down { animation: scrub-down .18s ease-out; }
-.panel.scrub-up { animation: scrub-up .18s ease-out; }
-body.scrubbing .rail-indicator { transition-duration: .16s; }
+body.scrubbing .rail-indicator { transition-duration: .1s; }
 body.scrubbing .rail .tab[aria-selected="true"] svg { animation: none; }
 
-/* Bulle à côté du doigt pendant le glissement sur la barre */
+/* Bulle à côté du doigt pendant le glissement sur la barre.
+   Le conteneur suit le doigt par transform (sans transition) ; le contenu gère l'apparition. */
 .scrub-bubble {
   position: fixed;
   z-index: 45;
   left: calc(var(--rail-w) + 12px);
   top: 0;
+  will-change: transform;
+  pointer-events: none;
+}
+.scrub-inner {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -355,11 +359,10 @@ body.scrubbing .rail .tab[aria-selected="true"] svg { animation: none; }
   opacity: 0;
   transform: translateX(-10px) scale(.9);
   transform-origin: left center;
-  transition: opacity .15s ease, transform .22s var(--ease), top .08s linear;
-  pointer-events: none;
+  transition: opacity .12s ease, transform .18s var(--ease);
 }
-.scrub-bubble.show { opacity: 1; transform: none; }
-.scrub-bubble::before {
+.scrub-bubble.show .scrub-inner { opacity: 1; transform: none; }
+.scrub-inner::before {
   content: "";
   position: absolute;
   left: -7px;
@@ -371,9 +374,9 @@ body.scrubbing .rail .tab[aria-selected="true"] svg { animation: none; }
   background: inherit;
   transform: rotate(45deg);
 }
-.scrub-bubble svg { position: relative; flex: none; width: 26px; height: 26px; color: var(--accent); }
-.scrub-bubble span { position: relative; overflow: hidden; text-overflow: ellipsis; }
-.scrub-bubble.bump svg { animation: pop .3s var(--ease); }
+.scrub-icon { position: relative; display: block; flex: none; width: 26px; height: 26px; color: var(--accent); }
+.scrub-icon svg { display: block; width: 100%; height: 100%; }
+.scrub-label { position: relative; overflow: hidden; text-overflow: ellipsis; }
 .panel.swap { animation: swap .35s var(--ease); }
 
 .group {
@@ -384,6 +387,8 @@ body.scrubbing .rail .tab[aria-selected="true"] svg { animation: none; }
   padding: 16px;
   margin-bottom: 14px;
 }
+/* Les cartes hors de l'écran ne sont pas calculées : changement d'étape plus rapide. */
+.panel > .group { content-visibility: auto; contain-intrinsic-size: auto 320px; }
 .group h2 { margin: 0 0 4px; font-size: 18px; line-height: 1.25; letter-spacing: -.01em; text-wrap: balance; }
 .group h3 {
   margin: 20px 0 2px;
@@ -786,8 +791,6 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes slide-up { from { opacity: 0; transform: translateY(26px); } }
 @keyframes slide-down { from { opacity: 0; transform: translateY(-26px); } }
-@keyframes scrub-down { from { opacity: .35; transform: translateY(12px); } }
-@keyframes scrub-up { from { opacity: .35; transform: translateY(-12px); } }
 @keyframes swap { from { opacity: 0; transform: scale(.985) translateY(8px); } }
 @keyframes reveal { from { opacity: 0; transform: translateY(-8px); } }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }

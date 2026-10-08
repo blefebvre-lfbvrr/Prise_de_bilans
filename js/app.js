@@ -419,36 +419,62 @@ function renderTabs() {
 // Glisser le doigt sur la barre de gauche : l'étape sous le doigt s'ouvre en direct
 // (comme l'index des Contacts), avec une bulle indiquant l'étape survolée.
 // ---------------------------------------------------------------------------
-const scrub = { id: null, startY: 0, active: false, justEnded: false, bubble: null };
+const scrub = {
+  id: null, startY: 0, y: 0, active: false, justEnded: false,
+  rects: null, raf: 0, shown: -1, half: 0, reportTimer: 0, target: 0, panelTimer: 0,
+  bubble: null, inner: null, icon: null, label: null,
+};
 
+// Positions des étapes mesurées une seule fois au début du geste (elles ne bougent pas).
 function tabIndexAt(y) {
-  const tabs = [...$('tabs').querySelectorAll('.tab')];
-  const first = tabs[0].getBoundingClientRect();
-  const last = tabs[tabs.length - 1].getBoundingClientRect();
-  if (y <= first.top) return 0;
-  if (y >= last.bottom) return tabs.length - 1;
-  const i = tabs.findIndex((tab) => { const r = tab.getBoundingClientRect(); return y >= r.top && y < r.bottom + 2; });
-  return i < 0 ? current : i;
+  const r = scrub.rects;
+  if (y <= r[0].top) return 0;
+  for (let i = 0; i < r.length; i++) if (y < r[i].bottom + 1) return i;
+  return r.length - 1;
 }
 
-function showBubble(i, y) {
-  const b = scrub.bubble;
-  const t = ALL_TABS[i];
-  if (b.dataset.i !== String(i)) {
-    b.dataset.i = String(i);
-    b.innerHTML = svg(RAIL[t.id].icon);
-    b.append(h('span', {}, t.title));
-    if (b.classList.contains('show')) play(b, 'bump');
+function placeBubble(i, y) {
+  if (scrub.shown !== i) {
+    scrub.shown = i;
+    scrub.icon.innerHTML = svg(RAIL[ALL_TABS[i].id].icon);
+    scrub.label.textContent = ALL_TABS[i].title;
+    scrub.icon.firstChild.animate?.(
+      [{ transform: 'scale(.6)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }],
+      { duration: 220, easing: 'ease-out' },
+    );
   }
-  const rail = $('tabs').getBoundingClientRect();
-  const half = b.offsetHeight / 2;
-  b.style.top = `${Math.min(Math.max(y, rail.top + half), rail.bottom - half) - half}px`;
-  b.classList.add('show');
+  const r = scrub.rects;
+  const top = Math.min(Math.max(y, r[0].top + scrub.half), r[r.length - 1].bottom - scrub.half) - scrub.half;
+  // Déplacement par transform (calculé par la carte graphique, sans recalcul de la page).
+  scrub.bubble.style.transform = `translate3d(0, ${top}px, 0)`;
+}
+
+// Bulle et pastille suivent le doigt à chaque image ; la page de droite, plus lourde,
+// suit au plus toutes les 70 ms (toujours sur l'étape sous le doigt).
+function scrubFrame() {
+  scrub.raf = 0;
+  const i = tabIndexAt(scrub.y);
+  if (i !== scrub.target) {
+    scrub.target = i;
+    $('tabs').style.setProperty('--i', String(i));
+    ALL_TABS.forEach((t, j) => document.getElementById(`tab-${t.id}`).setAttribute('aria-selected', String(j === i)));
+    if (navigator.vibrate) navigator.vibrate(5);
+    if (!scrub.panelTimer) scrub.panelTimer = setTimeout(syncScrubPanel, 70);
+  }
+  placeBubble(i, scrub.y);
+}
+
+function syncScrubPanel() {
+  scrub.panelTimer = 0;
+  if (scrub.target !== current) go(scrub.target, 'scrub');
 }
 
 function setupRailScrub() {
   const rail = $('tabs');
-  scrub.bubble = h('div', { class: 'scrub-bubble', 'aria-hidden': 'true' });
+  scrub.icon = h('span', { class: 'scrub-icon' });
+  scrub.label = h('span', { class: 'scrub-label' });
+  scrub.inner = h('div', { class: 'scrub-inner' }, scrub.icon, scrub.label);
+  scrub.bubble = h('div', { class: 'scrub-bubble', 'aria-hidden': 'true' }, scrub.inner);
   document.body.append(scrub.bubble);
 
   rail.addEventListener('pointerdown', (e) => {
@@ -460,28 +486,33 @@ function setupRailScrub() {
   rail.addEventListener('pointermove', (e) => {
     if (e.pointerId !== scrub.id) return;
     if (!scrub.active) {
-      if (Math.abs(e.clientY - scrub.startY) < 8) return;
+      if (Math.abs(e.clientY - scrub.startY) < 6) return;
       scrub.active = true;
       rail.setPointerCapture(e.pointerId);
+      scrub.rects = [...rail.querySelectorAll('.tab')].map((tab) => tab.getBoundingClientRect());
+      scrub.shown = -1;
+      scrub.target = current;
       document.body.classList.add('scrubbing');
+      scrub.bubble.classList.add('show');
+      scrub.half = scrub.inner.offsetHeight / 2;
     }
-    const i = tabIndexAt(e.clientY);
-    if (i !== current) {
-      go(i, i > current ? 'scrub-down' : 'scrub-up');
-      if (navigator.vibrate) navigator.vibrate(5);
-    }
-    showBubble(i, e.clientY);
-  });
+    scrub.y = e.clientY;
+    if (!scrub.raf) scrub.raf = requestAnimationFrame(scrubFrame);
+  }, { passive: true });
   const end = (e) => {
     if (e.pointerId !== scrub.id) return;
     scrub.id = null;
     if (!scrub.active) return;
     scrub.active = false;
+    if (scrub.raf) { cancelAnimationFrame(scrub.raf); scrubFrame(); }
+    clearTimeout(scrub.panelTimer);
+    syncScrubPanel();
     // Le relâchement déclenche un « click » sur l'étape d'origine : on l'ignore.
     scrub.justEnded = true;
     setTimeout(() => { scrub.justEnded = false; }, 350);
     document.body.classList.remove('scrubbing');
     scrub.bubble.classList.remove('show');
+    if (ALL_TABS[current].id === 'bilan') { clearTimeout(scrub.reportTimer); renderReport(); }
   };
   rail.addEventListener('pointerup', end);
   rail.addEventListener('pointercancel', end);
@@ -510,7 +541,8 @@ function moveIndicator() {
 
 function go(i, how) {
   const next = Math.max(0, Math.min(ALL_TABS.length - 1, i));
-  const anim = how || (next > current ? 'from-below' : next < current ? 'from-above' : null);
+  const scrubbing = how === 'scrub';
+  const anim = scrubbing ? null : how || (next > current ? 'from-below' : next < current ? 'from-above' : null);
   current = next;
   ALL_TABS.forEach((t, j) => {
     document.getElementById(`tab-${t.id}`).setAttribute('aria-selected', String(j === current));
@@ -518,6 +550,8 @@ function go(i, how) {
   });
   const panel = document.getElementById(`panel-${ALL_TABS[current].id}`);
   if (anim) play(panel, anim);
+  // Pendant le glissement : simple fondu, très léger pour suivre le doigt.
+  else if (scrubbing) panel.animate?.([{ opacity: 0.45 }, { opacity: 1 }], { duration: 140, easing: 'ease-out' });
   moveIndicator();
 
   document.getElementById('btn-prev').disabled = current === 0;
@@ -525,7 +559,11 @@ function go(i, how) {
   document.getElementById('btn-next').textContent = last
     ? 'Enregistrer'
     : `${ALL_TABS[current + 1].title} ›`;
-  if (ALL_TABS[current].id === 'bilan') renderReport();
+  if (ALL_TABS[current].id === 'bilan') {
+    // L'écran Bilan est le plus long à construire : pendant le glissement, seulement
+    // si le doigt s'y arrête un instant.
+    if (scrubbing) { clearTimeout(scrub.reportTimer); scrub.reportTimer = setTimeout(renderReport, 120); } else renderReport();
+  }
   $('main').scrollTo({ top: 0 });
   activeBilan().tab = current;
   save();
