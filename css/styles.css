@@ -37,9 +37,12 @@
   --tap: 44px;
   --ease: cubic-bezier(.2, .8, .2, 1);
   --top-inset: env(safe-area-inset-top, 0px);
-  --topbar-h: 56px;
-  --rail-w: 74px;
-  --bottombar-h: calc(59px + max(12px, env(safe-area-inset-bottom, 0px)));
+  /* Cadre fixe proportionnel à l'écran : le formulaire garde au moins 3/4 de la largeur. */
+  --topbar-h: clamp(46px, 6.4vh, 60px);
+  --rail-w: clamp(58px, 16.5vw, 92px);
+  --rail-ico: clamp(20px, 3.1vh, 28px);
+  --rail-font: clamp(9.5px, 1.32vh, 12.5px);
+  --bottom-btn-h: clamp(40px, 5.6vh, 50px);
   color-scheme: light;
 }
 
@@ -115,65 +118,55 @@
 html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
 
 body {
+  /* L'écran entier est figé (pas de rebond iOS) : seul <main> défile. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   margin: 0;
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "top top"
+    "rail main"
+    "bottom bottom";
   background: var(--bg);
   color: var(--text);
   font: 16px/1.45 var(--font);
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  overflow-x: hidden;
 }
+html { overscroll-behavior: none; }
 
 button { font: inherit; color: inherit; cursor: pointer; }
 button:disabled { cursor: default; opacity: .45; }
 :focus-visible { outline: 2px solid var(--sel); outline-offset: 2px; }
 
-/* ------------------------------------------------------------------ Bandeau */
-html { scroll-padding-top: calc(var(--top-inset) + 76px); scroll-padding-bottom: 100px; }
-body { padding-top: var(--top-inset); }
-
-/* Bande sous l'heure et la batterie, toujours couverte. */
-.statusbar-fill {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 40;
-  height: var(--top-inset);
-  background: var(--bar-bg);
-}
-
-/* Bandeau + étapes : se replie en défilant vers le bas, revient en remontant. */
-.chrome {
-  position: sticky;
-  top: var(--top-inset);
-  z-index: 30;
-  transition: transform .32s var(--ease);
-}
-body.compact .chrome { transform: translateY(calc(-1 * var(--topbar-h) - 3px)); }
+/* ------------------------------------------------------------------ Bandeau (fixe) */
+.chrome { grid-area: top; position: relative; z-index: 30; }
 
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  height: var(--topbar-h);
-  padding: 0 16px;
+  height: calc(var(--topbar-h) + var(--top-inset));
+  padding: var(--top-inset) clamp(10px, 3.5vw, 18px) 0;
   background: var(--bar-bg);
   color: var(--bar-fg);
 }
 
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 700; font-size: clamp(15px, 2.2vh, 18px); letter-spacing: -.01em; }
 .brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .logo {
   flex: none;
   display: grid;
   place-items: center;
-  height: 32px;
+  height: calc(var(--topbar-h) - 22px);
   padding: 0 8px;
   border-radius: 9px;
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 15px;
+  font-size: clamp(13px, 1.9vh, 16px);
   font-weight: 800;
   letter-spacing: -.02em;
   line-height: 1;
@@ -184,13 +177,13 @@ body.compact .chrome { transform: translateY(calc(-1 * var(--topbar-h) - 3px)); 
   align-items: center;
   gap: 8px;
   max-width: 58%;
-  min-height: 38px;
+  min-height: calc(var(--topbar-h) - 18px);
   padding: 0 12px;
   border: 1px solid color-mix(in srgb, var(--bar-fg) 45%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--bar-fg) 12%, transparent);
   color: var(--bar-fg);
-  font-size: 15px;
+  font-size: clamp(14px, 2vh, 16px);
   font-weight: 600;
   transition: background .2s, transform .15s var(--ease);
 }
@@ -224,25 +217,20 @@ body.compact .chrome { transform: translateY(calc(-1 * var(--topbar-h) - 3px)); 
   transition: width .5s var(--ease);
 }
 
-/* Toujours visible, jamais défilante : les étapes se partagent la hauteur. */
+/* Barre latérale fixe : les étapes se partagent toute la hauteur, jamais de défilement. */
 .rail {
-  position: fixed;
-  left: 0;
-  top: calc(var(--top-inset) + var(--topbar-h) + 3px);
-  bottom: var(--bottombar-h);
+  grid-area: rail;
+  position: relative;
   z-index: 20;
-  width: var(--rail-w);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-height: 0;
   padding: 6px;
   overflow: hidden;
   background: var(--card);
   border-right: 1px solid var(--border);
-  transition: top .32s var(--ease);
 }
-body.compact .rail { top: var(--top-inset); }
-
 .rail-indicator {
   position: absolute;
   left: 6px;
@@ -271,7 +259,7 @@ body.compact .rail { top: var(--top-inset); }
   border-radius: 12px;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--rail-font);
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -.01em;
@@ -280,8 +268,8 @@ body.compact .rail { top: var(--top-inset); }
 .rail .tab:active { transform: scale(.92); }
 .rail .tab[aria-selected="true"] { color: var(--accent-ink); font-weight: 800; }
 .rail .tab[aria-selected="true"] svg { animation: pop .4s var(--ease); }
-.rail .ico { position: relative; display: block; width: 26px; height: 26px; }
-.rail .ico svg { display: block; width: 26px; height: 26px; }
+.rail .ico { position: relative; display: block; width: var(--rail-ico); height: var(--rail-ico); }
+.rail .ico svg { display: block; width: 100%; height: 100%; }
 .rail .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Pastille bleue « étape remplie » */
@@ -311,7 +299,16 @@ body.compact .rail { top: var(--top-inset); }
 @media (max-width: 360px) { .bottombar .btn { font-size: 15px; } .bottombar #btn-prev { flex-basis: 34%; } }
 
 /* ------------------------------------------------------------------ Contenu */
-main { margin-left: var(--rail-w); padding: 14px 12px; }
+main {
+  grid-area: main;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-block: 16px;
+  padding: 14px clamp(8px, 3vw, 16px) 24px;
+}
 .panel { max-width: 720px; margin-inline: auto; }
 
 .panel { animation: fade-in .2s ease-out; }
@@ -617,28 +614,16 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
 
 /* Barre du bas */
 .bottombar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  grid-area: bottom;
+  position: relative;
   z-index: 30;
   display: flex;
   gap: 10px;
-  padding: 10px 16px max(12px, env(safe-area-inset-bottom, 0px));
+  padding: clamp(6px, 1.1vh, 10px) clamp(10px, 3.5vw, 16px) max(clamp(6px, 1.1vh, 12px), env(safe-area-inset-bottom, 0px));
   background: var(--card);
   border-top: 1px solid var(--border);
 }
-/* Prolonge le fond sous la barre (barre d'accueil iOS, barre d'outils Safari). */
-.bottombar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 200px;
-  background: var(--card);
-}
-.bottombar .btn { flex: 1; min-height: 48px; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bottombar .btn { flex: 1; min-height: var(--bottom-btn-h); padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bottombar #btn-prev { flex: 0 1 40%; }
 
 /* Feuille des victimes */

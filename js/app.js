@@ -412,8 +412,7 @@ function go(i, how) {
     ? 'Enregistrer'
     : `${ALL_TABS[current + 1].title} ›`;
   if (ALL_TABS[current].id === 'bilan') renderReport();
-  window.scrollTo({ top: 0 });
-  document.body.classList.remove('compact');
+  $('main').scrollTo({ top: 0 });
   activeBilan().tab = current;
   save();
 }
@@ -738,33 +737,10 @@ function closeSheet() {
 }
 
 // ---------------------------------------------------------------------------
-// Bandeau repliable : masqué en défilant vers le bas, de retour en remontant.
-// ---------------------------------------------------------------------------
-let scrollAnchor = 0;
-function onScroll() {
-  const body = document.body;
-  const y = Math.max(0, window.scrollY);
-  const compact = body.classList.contains('compact');
-  if (y < 40) {
-    body.classList.remove('compact');
-    scrollAnchor = y;
-  } else if (!compact && y > scrollAnchor + 24) {
-    body.classList.add('compact');
-    scrollAnchor = y;
-  } else if (compact && y < scrollAnchor - 24) {
-    body.classList.remove('compact');
-    scrollAnchor = y;
-  } else if (compact ? y > scrollAnchor : y < scrollAnchor) {
-    scrollAnchor = y;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Démarrage
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
 renderTabs();
-window.addEventListener('scroll', onScroll, { passive: true });
 $('btn-prev').addEventListener('click', () => go(current - 1));
 $('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
 $('btn-share').addEventListener('click', share);
