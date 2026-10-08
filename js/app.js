@@ -1,6 +1,6 @@
 import { TABS, SIGNES_DETRESSE, SURV_FIELDS, has } from './schema.js';
 import {
-  buildReport, computeAge, detresseStatus, expandFields, gcsTotal, isVisible, suggestions, victimSummary,
+  buildReport, computeAge, detresseStatus, expandFields, gcsTotal, identiteRows, isVisible, suggestions, victimSummary,
 } from './report.js';
 
 // ---------------------------------------------------------------------------
@@ -532,13 +532,23 @@ function reportPre(sec) {
   return pre;
 }
 
+// Identité : chaque valeur a son bouton, pour la coller dans le champ ARGOS correspondant.
+function identiteList() {
+  return h('dl', { class: 'id-list' }, ...identiteRows(state).map(([k, v]) => {
+    const btn = h('button', { type: 'button', class: 'btn mini', 'aria-label': `Copier ${k.toLowerCase()}` }, 'Copier');
+    btn.addEventListener('click', () => copy(v, `Copié : ${k.toLowerCase()}`, btn));
+    return h('div', { class: 'id-row' }, h('dt', {}, k), h('dd', {}, v), btn);
+  }));
+}
+
 function renderReport() {
   renderSummary();
   const report = buildReport(state);
   document.getElementById('report-sections').replaceChildren(...report.sections.map((sec) => {
     const btn = h('button', { type: 'button', class: 'btn mini', disabled: !sec.text || undefined }, 'Copier');
     btn.addEventListener('click', () => copy(sec.text, `${sec.title.charAt(0)}${sec.title.slice(1).toLowerCase()} copié`, btn));
-    return h('article', { class: 'report-card' }, h('header', {}, h('h3', {}, sec.title), btn), reportPre(sec));
+    const body = sec.id === 'identite' && sec.text ? identiteList() : reportPre(sec);
+    return h('article', { class: 'report-card' }, h('header', {}, h('h3', {}, sec.title), btn), body);
   }));
   const miss = missingItems();
   const box = document.getElementById('missing');

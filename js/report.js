@@ -86,9 +86,10 @@ const group = (id) => allGroups().find((g) => g.id === id);
 // ---------------------------------------------------------------------------
 // Sections du bilan
 // ---------------------------------------------------------------------------
-export function identiteText(s) {
+// Lignes d'identité [libellé, valeur], dans l'ordre des champs ARGOS.
+export function identiteRows(s) {
   const age = s.age !== undefined && s.age !== '' ? `${s.age} ans` : '';
-  const rows = [
+  return [
     ['Nom', s.nom ? String(s.nom).toUpperCase() : ''],
     ['Prénom', s.prenom],
     ['Sexe', s.sexe === 'H' ? 'Homme' : s.sexe === 'F' ? 'Femme' : ''],
@@ -98,8 +99,11 @@ export function identiteText(s) {
     ['Pays de naissance', s.pays_naissance],
     ['Adresse', s.adresse ? String(s.adresse).replace(/\n+/g, ', ') : ''],
     ['Accréditation / dossard', s.acred],
-  ];
-  return rows.filter(([, v]) => !isEmpty(v)).map(([k, v]) => `${k} : ${v}`).join('\n');
+  ].filter(([, v]) => !isEmpty(v)).map(([k, v]) => [k, String(v).trim()]);
+}
+
+export function identiteText(s) {
+  return identiteRows(s).map(([k, v]) => `${k} : ${v}`).join('\n');
 }
 
 const sentence = (str) => {

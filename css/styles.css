@@ -601,6 +601,20 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
 .report-card pre .alert-line { color: var(--alert); font-weight: 700; }
 .report-card .empty { color: var(--muted); font-style: italic; }
 
+.id-list { margin: 0; padding: 4px 0; }
+.id-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "k btn" "v btn";
+  align-items: center;
+  column-gap: 10px;
+  padding: 8px 10px 8px 16px;
+}
+.id-row + .id-row { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.id-row dt { grid-area: k; color: var(--muted); font-size: 13px; }
+.id-row dd { grid-area: v; margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.id-row .btn { grid-area: btn; }
+
 /* Barre du bas */
 .bottombar {
   position: fixed;
