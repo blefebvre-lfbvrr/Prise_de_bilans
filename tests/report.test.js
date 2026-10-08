@@ -72,9 +72,10 @@ test('bilan complémentaire', () => {
       { heure: '15:30' },
     ],
   });
-  const sec = r.sections.find((x) => x.id === 'complementaire').text;
-  assert.equal(sec, '14h50 : FC 98, TA 125/80, FR 16, Sat 98 % AA, Glasgow 15, Douleur 3/10\n15h10 : Sat 95 % sous O2\nSe sent mieux');
-  assert.match(r.full, /GESTES EFFECTUÉS|BILAN COMPLÉMENTAIRE\n14h50/);
+  const signes = r.sections.find((x) => x.id === 'signes').text;
+  assert.ok(signes.endsWith('Bilan complémentaire :\n14h50 : FC 98, TA 125/80, FR 16, Sat 98 % AA, Glasgow 15, Douleur 3/10\n15h10 : Sat 95 % sous O2\nSe sent mieux'));
+  assert.ok(!r.sections.some((x) => x.id === 'complementaire'));
+  assert.ok(r.full.indexOf('Bilan complémentaire :') < r.full.indexOf('GESTES EFFECTUÉS') || !r.full.includes('GESTES EFFECTUÉS'));
 });
 
 test('pas de lignes vides quand une partie n’est pas renseignée', async () => {

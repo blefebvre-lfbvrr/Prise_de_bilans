@@ -173,6 +173,10 @@ export function signesText(s) {
   // Bilans neuro / circu / respi, puis constantes, puis ATCD.
   for (const id of ['neuro', 'circu', 'respi', 'constantes', 'mhta']) blocks.push(groupLines(group(id), s));
 
+  // Bilan complémentaire : à la suite, avec l'heure de chaque série de constantes.
+  const compl = complementaireText(s);
+  if (compl) blocks.push(['Bilan complémentaire :', ...compl.split('\n')]);
+
   return blocks.filter((b) => b.length).map((b) => b.join('\n')).join('\n\n');
 }
 
@@ -214,7 +218,6 @@ export function buildReport(s) {
     { id: 'circonstanciel', title: 'CIRCONSTANCIEL', text: circonstancielText(s) },
     { id: 'signes', title: 'SIGNES PARTICULIERS', text: signesText(s) },
     { id: 'gestes', title: 'GESTES EFFECTUÉS', text: gestesText(s) },
-    { id: 'complementaire', title: 'BILAN COMPLÉMENTAIRE', text: complementaireText(s) },
   ];
 
   const head = [title];

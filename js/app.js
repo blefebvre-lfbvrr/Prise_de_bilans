@@ -535,8 +535,7 @@ function reportPre(sec) {
 function renderReport() {
   renderSummary();
   const report = buildReport(state);
-  const shown = report.sections.filter((sec) => sec.id !== 'complementaire' || sec.text);
-  document.getElementById('report-sections').replaceChildren(...shown.map((sec) => {
+  document.getElementById('report-sections').replaceChildren(...report.sections.map((sec) => {
     const btn = h('button', { type: 'button', class: 'btn mini', disabled: !sec.text || undefined }, 'Copier');
     btn.addEventListener('click', () => copy(sec.text, `${sec.title.charAt(0)}${sec.title.slice(1).toLowerCase()} copié`, btn));
     return h('article', { class: 'report-card' }, h('header', {}, h('h3', {}, sec.title), btn), reportPre(sec));
