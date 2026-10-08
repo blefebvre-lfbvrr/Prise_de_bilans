@@ -31,11 +31,12 @@
     </button>
   </header>
 
-  <div class="stepper">
-    <nav class="tabs" id="tabs" role="tablist" aria-label="Étapes du bilan"></nav>
-    <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+  <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
   </div>
-  </div>
+
+  <nav class="rail" id="tabs" role="tablist" aria-orientation="vertical" aria-label="Étapes du bilan">
+    <span class="rail-indicator" id="rail-indicator" aria-hidden="true"></span>
+  </nav>
 
   <main id="main">
     <div id="panels"></div>

@@ -1,7 +1,7 @@
 import { TABS, SYMPTOMS, SIGNES_DETRESSE, DETRESSES, has, fmtTime, joinEt, optOut } from './schema.js';
 
 const isEmpty = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
-const toLines = (x) => (x == null ? [] : Array.isArray(x) ? x.filter((l) => !isEmpty(l)) : [x]);
+const toLines = (x) => (Array.isArray(x) ? x.filter((l) => !isEmpty(l)) : isEmpty(x) ? [] : [x]);
 const NONE_RE = /^\s*aucun/i;
 
 export function expandFields(fields) {
@@ -180,6 +180,27 @@ export function gestesText(s) {
   return [...groupLines(group('gestes'), s)].join('\n');
 }
 
+// Bilan complémentaire : une ligne par série de constantes, précédée de son heure.
+export function complementaireText(s) {
+  const has = (v) => v !== undefined && v !== null && String(v).trim() !== '';
+  return (s.surv || []).map((e) => {
+    const parts = [];
+    if (has(e.fc)) parts.push(`FC ${e.fc}`);
+    if (has(e.ta)) parts.push(`TA ${e.ta}`);
+    if (has(e.fr)) parts.push(`FR ${e.fr}`);
+    if (has(e.sat)) parts.push(`Sat ${e.sat} % ${e.sat_sous === 'O2' ? 'sous O2' : 'AA'}`);
+    if (has(e.gcs)) parts.push(`Glasgow ${e.gcs}`);
+    if (has(e.eva)) parts.push(`Douleur ${e.eva}/10`);
+    if (has(e.temp)) parts.push(`Température ${e.temp}°`);
+    if (has(e.gly)) parts.push(`Glycémie ${e.gly} ${s.gly_unite || 'mmol/L'}`);
+    const note = has(e.note) ? String(e.note).trim().split(/\n+/) : [];
+    if (!parts.length && !note.length) return '';
+    const head = has(e.heure) ? `${fmtTime(e.heure)} :` : 'Contrôle :';
+    const lines = parts.length ? [`${head} ${parts.join(', ')}`, ...note] : [`${head} ${note[0]}`, ...note.slice(1)];
+    return lines.join('\n');
+  }).filter(Boolean).join('\n');
+}
+
 export function buildReport(s) {
   const when = [s.date_pec ? fmtDate(s.date_pec) : '', s.heure_pec ? fmtTime(s.heure_pec) : ''].filter(Boolean).join(' à ');
   const who = [s.nom ? String(s.nom).toUpperCase() : '', s.prenom].filter(Boolean).join(' ');
@@ -193,6 +214,7 @@ export function buildReport(s) {
     { id: 'circonstanciel', title: 'CIRCONSTANCIEL', text: circonstancielText(s) },
     { id: 'signes', title: 'SIGNES PARTICULIERS', text: signesText(s) },
     { id: 'gestes', title: 'GESTES EFFECTUÉS', text: gestesText(s) },
+    { id: 'complementaire', title: 'BILAN COMPLÉMENTAIRE', text: complementaireText(s) },
   ];
 
   const head = [title];

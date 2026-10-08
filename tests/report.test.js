@@ -55,3 +55,29 @@ test('statut de détresse', async () => {
   assert.deepEqual(detresseStatus({ sd_neuro: ['aucun'], sd_respi: ['sat'], sd_circu: ['fc'] }),
     { level: 'detresse', text: 'Détresse respi et circu' });
 });
+
+test('dernier repas en texte libre', () => {
+  const s = (v) => buildReport({ nausees: 'non', dernier_repas: v }).full;
+  assert.match(s('13h'), /Dernier repas à 13h/);
+  assert.match(s('13:30'), /Dernier repas à 13h30/);
+  assert.match(s('il y a 2h'), /Dernier repas il y a 2h/);
+});
+
+test('bilan complémentaire', () => {
+  const r = buildReport({
+    gly_unite: 'mmol/L',
+    surv: [
+      { heure: '14:50', fc: '98', ta: '125/80', fr: '16', sat: '98', gcs: '15', eva: '3' },
+      { heure: '15:10', sat: '95', sat_sous: 'O2', note: 'Se sent mieux' },
+      { heure: '15:30' },
+    ],
+  });
+  const sec = r.sections.find((x) => x.id === 'complementaire').text;
+  assert.equal(sec, '14h50 : FC 98, TA 125/80, FR 16, Sat 98 % AA, Glasgow 15, Douleur 3/10\n15h10 : Sat 95 % sous O2\nSe sent mieux');
+  assert.match(r.full, /GESTES EFFECTUÉS|BILAN COMPLÉMENTAIRE\n14h50/);
+});
+
+test('pas de lignes vides quand une partie n’est pas renseignée', async () => {
+  const { signesText } = await import('../js/report.js');
+  assert.equal(signesText({ detresse: ['malaise', 'intox'], dernier_repas: 'ce midi', sat_sous: 'AA', gly_unite: 'mmol/L' }), 'Dernier repas ce midi');
+});

@@ -819,6 +819,31 @@ export const TABS = [
       },
     ],
   },
+  {
+    id: 'complementaire',
+    title: 'Bilan complémentaire',
+    short: 'Complém.',
+    groups: [
+      {
+        id: 'complementaire',
+        title: 'Bilan complémentaire',
+        hint: 'Une nouvelle série de constantes à chaque contrôle, avec son heure.',
+        fields: [{ type: 'surveillance', name: 'surv' }],
+      },
+    ],
+  },
+];
+
+// Champs d'une série de constantes du bilan complémentaire.
+export const SURV_FIELDS = [
+  { k: 'fc', l: 'FC', suffix: 'bpm', mode: 'numeric' },
+  { k: 'ta', l: 'TA', placeholder: '120/80', mode: 'numeric' },
+  { k: 'fr', l: 'FR', suffix: '/min', mode: 'numeric' },
+  { k: 'sat', l: 'Sat', suffix: '%', mode: 'numeric' },
+  { k: 'gcs', l: 'Glasgow', mode: 'numeric' },
+  { k: 'eva', l: 'Douleur', suffix: '/10', mode: 'numeric' },
+  { k: 'temp', l: 'Temp.', suffix: '°C', mode: 'decimal' },
+  { k: 'gly', l: 'Glycémie', suffix: 'mmol/L', mode: 'decimal' },
 ];
 
 // Champs « plaintes et signes associés », insérés là où un groupe contient { type: 'symptoms' }.
@@ -850,7 +875,11 @@ export const SYMPTOMS = [
   { type: 'radio', name: 'cephalees_type', label: 'Type', options: DOULEUR_TYPES, show: (s) => s.cephalees === 'oui', out: () => null },
   tri('vertiges', 'Vertiges', 'Vertiges', 'Pas de vertiges'),
   tri('vision', 'Vision trouble', 'Vision trouble', 'Pas de trouble de la vision'),
-  { type: 'time', name: 'dernier_repas', label: 'Dernier repas', fmt: (v) => `Dernier repas à ${fmtTime(v)}` },
+  text('dernier_repas', 'Dernier repas', {
+    placeholder: 'à 13h, il y a 2h, ce midi…',
+    // « 13h » ou « 13:00 » → « Dernier repas à 13h » ; sinon le texte tel quel.
+    fmt: (v) => (/^\d/.test(v) ? `Dernier repas à ${fmtTime(v)}` : `Dernier repas ${v}`),
+  }),
   area('autres_signes', 'Autres signes / douleur', { placeholder: 'Localiser, qualifier et chiffrer la douleur…' }),
 ];
 

@@ -1,4 +1,4 @@
-import { TABS, SIGNES_DETRESSE, has } from './schema.js';
+import { TABS, SIGNES_DETRESSE, SURV_FIELDS, has } from './schema.js';
 import {
   buildReport, computeAge, detresseStatus, expandFields, gcsTotal, isVisible, suggestions, victimSummary,
 } from './report.js';
@@ -201,6 +201,9 @@ function renderField(f) {
     case 'gcs':
       wrap = renderGcs();
       break;
+    case 'surveillance':
+      wrap = renderSurveillance(f);
+      break;
     default: {
       const input = renderInput(f, id);
       let control = input;
@@ -243,6 +246,69 @@ function renderGcs() {
     h('div', { class: 'gcs' }, sel('gcs_y', 'Yeux', 4), sel('gcs_v', 'Verbal', 5), sel('gcs_m', 'Moteur', 6), total));
 }
 
+// Bilan complémentaire : liste de séries de constantes, chacune avec son heure.
+const nowHHMM = () => new Date().toTimeString().slice(0, 5);
+
+function renderSurveillance(f) {
+  const list = h('div', { class: 'surv-list' });
+  const empty = h('p', { class: 'surv-empty' }, 'Aucun contrôle pour l’instant. Ajoutez une série à chaque nouvelle prise de constantes.');
+  const add = h('button', { type: 'button', class: 'btn primary block' }, '+ Nouvelle série de constantes');
+  const entries = () => state[f.name] || (state[f.name] = []);
+
+  function card(e, i) {
+    const tid = `surv-${i}-heure-${uid++}`;
+    const time = h('input', { id: tid, type: 'time', 'aria-label': `Heure du contrôle ${i + 1}` });
+    time.value = e.heure || '';
+    time.addEventListener('input', () => { e.heure = time.value; refresh(); });
+    const del = h('button', { type: 'button', class: 'btn mini danger' }, 'Supprimer');
+    twoStep(del, 'Confirmer', () => { entries().splice(i, 1); draw(); refresh(); });
+
+    const grid = h('div', { class: 'surv-grid' }, ...SURV_FIELDS.map((sf) => {
+      const id = `surv-${i}-${sf.k}-${uid++}`;
+      const inp = h('input', { id, type: 'text', inputmode: sf.mode, placeholder: sf.placeholder, autocomplete: 'off' });
+      inp.value = e[sf.k] ?? '';
+      inp.addEventListener('input', () => { e[sf.k] = inp.value; refresh(); });
+      return h('div', { class: 'surv-field' },
+        h('label', { for: id }, sf.l, sf.suffix ? h('span', { class: 'unit' }, ` ${sf.suffix}`) : null), inp);
+    }));
+
+    const o2 = h('button', { type: 'button', class: 'opt', 'aria-pressed': String(e.sat_sous === 'O2') }, 'Sat sous O2');
+    o2.addEventListener('click', () => {
+      e.sat_sous = e.sat_sous === 'O2' ? 'AA' : 'O2';
+      o2.setAttribute('aria-pressed', String(e.sat_sous === 'O2'));
+      play(o2, 'just');
+      refresh();
+    });
+    const note = h('textarea', { rows: 2, placeholder: 'Remarque : évolution, plainte, geste…', 'aria-label': `Remarque du contrôle ${i + 1}` });
+    note.value = e.note || '';
+    note.addEventListener('input', () => { e.note = note.value; refresh(); });
+
+    return h('article', { class: 'surv-card' },
+      h('header', {}, h('span', { class: 'surv-n' }, `Contrôle ${i + 1}`), time),
+      grid, h('div', { class: 'surv-extra' }, o2, del), note);
+  }
+
+  function draw(focusLast) {
+    const arr = state[f.name] || [];
+    list.replaceChildren(...arr.map(card));
+    empty.hidden = arr.length > 0;
+    const c = list.lastElementChild;
+    if (focusLast && c) {
+      play(c, 'reveal');
+      c.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      c.querySelector('.surv-grid input')?.focus({ preventScroll: true });
+    }
+  }
+
+  add.addEventListener('click', () => {
+    entries().push({ heure: nowHHMM(), sat_sous: 'AA' });
+    draw(true);
+    refresh();
+  });
+  bind(f.name, () => draw());
+  return h('div', { class: 'field surv' }, empty, list, add);
+}
+
 let suggestBox;
 const sdBlocks = [];
 function renderDetresseGroup(g, section) {
@@ -272,6 +338,17 @@ function renderGroup(g) {
 // ---------------------------------------------------------------------------
 // Étapes
 // ---------------------------------------------------------------------------
+const svg = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const RAIL = {
+  detresse: { short: 'Détresse', icon: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>' },
+  identite: { short: 'Identité', icon: '<rect width="18" height="14" x="3" y="5" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16.5a3 3 0 0 1 6 0"/><path d="M15 10h3"/><path d="M15 14h3"/>' },
+  circonstances: { short: 'Circonst.', icon: '<path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>' },
+  signes: { short: 'Signes', icon: '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>' },
+  bilans: { short: 'Bilans', icon: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>' },
+  gestes: { short: 'Gestes', icon: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 6v12"/><path d="M18 6v12"/><path d="M10 10h.01"/><path d="M14 10h.01"/><path d="M10 14h.01"/><path d="M14 14h.01"/>' },
+  complementaire: { short: 'Complém.', icon: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>' },
+  bilan: { short: 'Bilan', icon: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/>' },
+};
 const ALL_TABS = [...TABS.map((t) => ({ id: t.id, title: t.title })), { id: 'bilan', title: 'Bilan' }];
 const TAB_DONE = {
   detresse: (s) => (s.detresse || []).length > 0,
@@ -280,17 +357,23 @@ const TAB_DONE = {
   signes: (s) => !!s.arr_position && SIGNES_DETRESSE.every((sd) => (s[sd.name] || []).length),
   bilans: (s) => !!(gcsTotal(s) && s.fc && s.fr && s.sat),
   gestes: (s) => !!((s.gestes || []).length || s.gestes_autre),
+  complementaire: (s) => (s.surv || []).length > 0,
 };
+// Le bilan complémentaire est facultatif : il ne compte pas dans la progression.
+const PROGRESS_TABS = Object.keys(TAB_DONE).filter((id) => id !== 'complementaire');
 let current = 0;
 
 function renderTabs() {
   const nav = document.getElementById('tabs');
   const panels = document.getElementById('panels');
   ALL_TABS.forEach((t, i) => {
+    const ico = h('span', { class: 'ico' });
+    ico.innerHTML = svg(RAIL[t.id].icon);
+    ico.append(h('span', { class: 'tick', 'aria-hidden': 'true' }));
     nav.append(h('button', {
       type: 'button', class: 'tab', role: 'tab', id: `tab-${t.id}`, 'aria-controls': `panel-${t.id}`,
-      onclick: () => go(i),
-    }, h('span', { class: 'num' }, String(i + 1)), t.title));
+      'aria-label': `${i + 1}. ${t.title}`, onclick: () => go(i),
+    }, ico, h('span', { class: 'lbl' }, RAIL[t.id].short)));
   });
   for (const t of TABS) {
     const panel = h('section', { class: 'panel', id: `panel-${t.id}`, role: 'tabpanel', hidden: true });
@@ -304,9 +387,16 @@ function renderTabs() {
   }
 }
 
+// Pastille orange qui glisse sous l'étape active.
+function moveIndicator() {
+  const rail = $('tabs');
+  rail.style.setProperty('--n', String(ALL_TABS.length));
+  rail.style.setProperty('--i', String(current));
+}
+
 function go(i, how) {
   const next = Math.max(0, Math.min(ALL_TABS.length - 1, i));
-  const anim = how || (next > current ? 'from-right' : next < current ? 'from-left' : null);
+  const anim = how || (next > current ? 'from-below' : next < current ? 'from-above' : null);
   current = next;
   ALL_TABS.forEach((t, j) => {
     document.getElementById(`tab-${t.id}`).setAttribute('aria-selected', String(j === current));
@@ -314,9 +404,7 @@ function go(i, how) {
   });
   const panel = document.getElementById(`panel-${ALL_TABS[current].id}`);
   if (anim) play(panel, anim);
-  const tab = document.getElementById(`tab-${ALL_TABS[current].id}`);
-  const nav = document.getElementById('tabs');
-  nav.scrollTo({ left: tab.offsetLeft - (nav.clientWidth - tab.clientWidth) / 2 });
+  moveIndicator();
 
   document.getElementById('btn-prev').disabled = current === 0;
   const last = current === ALL_TABS.length - 1;
@@ -325,7 +413,7 @@ function go(i, how) {
     : `${ALL_TABS[current + 1].title} ›`;
   if (ALL_TABS[current].id === 'bilan') renderReport();
   window.scrollTo({ top: 0 });
-  $('chrome').classList.remove('compact');
+  document.body.classList.remove('compact');
   activeBilan().tab = current;
   save();
 }
@@ -355,10 +443,10 @@ function updateProgress() {
   let done = 0;
   for (const [id, test] of Object.entries(TAB_DONE)) {
     const ok = test(state);
-    if (ok) done++;
+    if (ok && PROGRESS_TABS.includes(id)) done++;
     document.getElementById(`tab-${id}`).classList.toggle('done', ok);
   }
-  document.getElementById('progress-bar').style.width = `${(done / Object.keys(TAB_DONE).length) * 100}%`;
+  document.getElementById('progress-bar').style.width = `${(done / PROGRESS_TABS.length) * 100}%`;
 }
 
 function victimTitle(b) {
@@ -447,7 +535,8 @@ function reportPre(sec) {
 function renderReport() {
   renderSummary();
   const report = buildReport(state);
-  document.getElementById('report-sections').replaceChildren(...report.sections.map((sec) => {
+  const shown = report.sections.filter((sec) => sec.id !== 'complementaire' || sec.text);
+  document.getElementById('report-sections').replaceChildren(...shown.map((sec) => {
     const btn = h('button', { type: 'button', class: 'btn mini', disabled: !sec.text || undefined }, 'Copier');
     btn.addEventListener('click', () => copy(sec.text, `${sec.title.charAt(0)}${sec.title.slice(1).toLowerCase()} copié`, btn));
     return h('article', { class: 'report-card' }, h('header', {}, h('h3', {}, sec.title), btn), reportPre(sec));
@@ -644,22 +733,21 @@ function closeSheet() {
 // ---------------------------------------------------------------------------
 let scrollAnchor = 0;
 function onScroll() {
-  const chrome = $('chrome');
+  const body = document.body;
   const y = Math.max(0, window.scrollY);
-  const compact = chrome.classList.contains('compact');
+  const compact = body.classList.contains('compact');
   if (y < 40) {
-    chrome.classList.remove('compact');
+    body.classList.remove('compact');
     scrollAnchor = y;
   } else if (!compact && y > scrollAnchor + 24) {
-    chrome.classList.add('compact');
+    body.classList.add('compact');
     scrollAnchor = y;
   } else if (compact && y < scrollAnchor - 24) {
-    chrome.classList.remove('compact');
+    body.classList.remove('compact');
     scrollAnchor = y;
   } else if (compact ? y > scrollAnchor : y < scrollAnchor) {
     scrollAnchor = y;
   }
-  chrome.classList.toggle('scrolled', y > 2);
 }
 
 // ---------------------------------------------------------------------------

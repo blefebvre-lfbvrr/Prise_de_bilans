@@ -38,6 +38,8 @@
   --ease: cubic-bezier(.2, .8, .2, 1);
   --top-inset: env(safe-area-inset-top, 0px);
   --topbar-h: 56px;
+  --rail-w: 74px;
+  --bottombar-h: calc(59px + max(12px, env(safe-area-inset-bottom, 0px)));
   color-scheme: light;
 }
 
@@ -126,7 +128,7 @@ button:disabled { cursor: default; opacity: .45; }
 :focus-visible { outline: 2px solid var(--sel); outline-offset: 2px; }
 
 /* ------------------------------------------------------------------ Bandeau */
-html { scroll-padding-top: calc(var(--top-inset) + 130px); scroll-padding-bottom: 100px; }
+html { scroll-padding-top: calc(var(--top-inset) + 76px); scroll-padding-bottom: 100px; }
 body { padding-top: var(--top-inset); }
 
 /* Bande sous l'heure et la batterie, toujours couverte. */
@@ -147,7 +149,7 @@ body { padding-top: var(--top-inset); }
   z-index: 30;
   transition: transform .32s var(--ease);
 }
-.chrome.compact { transform: translateY(calc(-1 * var(--topbar-h))); }
+body.compact .chrome { transform: translateY(calc(-1 * var(--topbar-h) - 3px)); }
 
 .topbar {
   display: flex;
@@ -211,57 +213,8 @@ body { padding-top: var(--top-inset); }
 .victim-dot.ok { background: #7fe0a8; }
 .victim-dot.detresse { background: #ff8a80; animation: alarm 1.6s ease-out infinite; }
 
-/* ------------------------------------------------------------------ Étapes */
-.stepper {
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  transition: box-shadow .25s;
-}
-.chrome.scrolled .stepper { box-shadow: var(--shadow-bar); }
-
-.tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 10px 16px 9px;
-  scrollbar-width: none;
-  scroll-behavior: smooth;
-}
-.tabs::-webkit-scrollbar { display: none; }
-
-.tab {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 0 14px 0 6px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--card);
-  font-size: 15px;
-  transition: background .25s var(--ease), border-color .25s, color .25s, transform .15s var(--ease);
-}
-.tab:active { transform: scale(.95); }
-.tab .num {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--no-soft);
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  transition: background .25s, color .25s;
-}
-.tab.done .num { background: var(--sel); color: var(--card); font-size: 0; }
-.tab.done .num::after { content: "✓"; font-size: 13px; animation: pop .35s var(--ease); }
-.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
-.tab[aria-selected="true"] .num { background: color-mix(in srgb, var(--accent-ink) 16%, transparent); color: var(--accent-ink); }
-
-.progress { height: 3px; background: transparent; }
+/* ------------------------------------------------------------------ Étapes (barre latérale) */
+.progress { height: 3px; background: var(--bar-bg); }
 .progress span {
   display: block;
   height: 100%;
@@ -271,12 +224,99 @@ body { padding-top: var(--top-inset); }
   transition: width .5s var(--ease);
 }
 
+/* Toujours visible, jamais défilante : les étapes se partagent la hauteur. */
+.rail {
+  position: fixed;
+  left: 0;
+  top: calc(var(--top-inset) + var(--topbar-h) + 3px);
+  bottom: var(--bottombar-h);
+  z-index: 20;
+  width: var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  overflow: hidden;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  transition: top .32s var(--ease);
+}
+body.compact .rail { top: var(--top-inset); }
+
+.rail-indicator {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 6px;
+  /* Une case de la barre (hauteur partagée, 2 px d'écart) ; suit la barre quand elle s'allonge. */
+  height: calc((100% - 12px - (var(--n, 8) - 1) * 2px) / var(--n, 8));
+  transform: translateY(calc(var(--i, 0) * (100% + 2px)));
+  border-radius: 12px;
+  background: var(--accent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: transform .38s var(--ease), height .38s var(--ease);
+}
+
+.rail .tab {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -.01em;
+  transition: color .25s, transform .15s var(--ease);
+}
+.rail .tab:active { transform: scale(.92); }
+.rail .tab[aria-selected="true"] { color: var(--accent-ink); font-weight: 800; }
+.rail .tab[aria-selected="true"] svg { animation: pop .4s var(--ease); }
+.rail .ico { position: relative; display: block; width: 26px; height: 26px; }
+.rail .ico svg { display: block; width: 26px; height: 26px; }
+.rail .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Pastille bleue « étape remplie » */
+.tick {
+  position: absolute;
+  right: -8px;
+  top: -6px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--card);
+  background: var(--sel);
+  color: var(--card);
+  font-size: 9px;
+  font-weight: 900;
+  opacity: 0;
+  transform: scale(.3);
+  transition: opacity .2s, transform .35s var(--ease);
+}
+.tick::after { content: "✓"; }
+.rail .tab.done .tick { opacity: 1; transform: none; }
+.rail .tab[aria-selected="true"] .tick { border-color: var(--accent); }
+
+@media (max-height: 560px) { .rail .lbl { display: none; } }
+@media (max-width: 360px) { .bottombar .btn { font-size: 15px; } .bottombar #btn-prev { flex-basis: 34%; } }
+
 /* ------------------------------------------------------------------ Contenu */
-main { max-width: 720px; margin: 0 auto; padding: 14px 16px; }
+main { margin-left: var(--rail-w); padding: 14px 12px; }
+.panel { max-width: 720px; margin-inline: auto; }
 
 .panel { animation: fade-in .2s ease-out; }
-.panel.from-right { animation: slide-right .3s var(--ease); }
-.panel.from-left { animation: slide-left .3s var(--ease); }
+.panel.from-below { animation: slide-up .32s var(--ease); }
+.panel.from-above { animation: slide-down .32s var(--ease); }
 .panel.swap { animation: swap .35s var(--ease); }
 
 .group {
@@ -463,6 +503,29 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
 .missing ul { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
 .missing li { padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
 
+/* Bilan complémentaire : séries de constantes */
+.surv-empty { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+.surv-list { display: grid; gap: 12px; margin-bottom: 12px; }
+.surv-card {
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--sel);
+}
+.surv-card header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+.surv-n { font-weight: 800; white-space: nowrap; }
+.surv-card header input[type="time"] { flex: 1 1 8em; width: 8em; min-width: 0; min-height: 38px; padding: 6px 10px; background: var(--card); font-weight: 700; }
+.surv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.surv-field label { display: block; margin-bottom: 3px; font-size: 13px; font-weight: 700; }
+.surv-field .unit { color: var(--muted); font-weight: 500; }
+.surv-field input, .surv-card textarea { background: var(--card); }
+.surv-field input { padding: 8px 10px; }
+.surv-extra { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 8px; }
+.surv-card textarea { min-height: 60px; }
+@media (min-width: 560px) { .surv-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
 /* Réglage d'enregistrement direct (repliable) */
 .settings { padding: 0; }
 .settings summary {
@@ -561,7 +624,7 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
   height: 200px;
   background: var(--card);
 }
-.bottombar .btn { flex: 1; min-height: 48px; }
+.bottombar .btn { flex: 1; min-height: 48px; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bottombar #btn-prev { flex: 0 1 40%; }
 
 /* Feuille des victimes */
@@ -651,8 +714,8 @@ input.filled, textarea.filled { border-color: color-mix(in srgb, var(--sel) 40%,
 
 /* ------------------------------------------------------------------ Animations */
 @keyframes fade-in { from { opacity: 0; } }
-@keyframes slide-right { from { opacity: 0; transform: translateX(28px); } }
-@keyframes slide-left { from { opacity: 0; transform: translateX(-28px); } }
+@keyframes slide-up { from { opacity: 0; transform: translateY(26px); } }
+@keyframes slide-down { from { opacity: 0; transform: translateY(-26px); } }
 @keyframes swap { from { opacity: 0; transform: scale(.985) translateY(8px); } }
 @keyframes reveal { from { opacity: 0; transform: translateY(-8px); } }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
