@@ -320,7 +320,6 @@ main {
 }
 .panel { max-width: 720px; margin-inline: auto; }
 
-.panel { animation: fade-in .2s ease-out; }
 .panel.from-below { animation: slide-up .32s var(--ease); }
 .panel.from-above { animation: slide-down .32s var(--ease); }
 .panel.swap { animation: swap .35s var(--ease); }

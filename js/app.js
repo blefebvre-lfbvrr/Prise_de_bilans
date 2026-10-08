@@ -51,14 +51,16 @@ const activeBilan = () => store.bilans.find((b) => b.id === store.activeId);
 let state = activeBilan().state;
 
 let saveTimer;
+function saveNow() {
+  clearTimeout(saveTimer);
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    OLD_KEYS.forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignoré */ }
+}
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(store));
-      OLD_KEYS.forEach((k) => localStorage.removeItem(k));
-    } catch { /* ignoré */ }
-  }, 250);
+  saveTimer = setTimeout(saveNow, 250);
 }
 
 // name -> fonctions de mise à jour de l'affichage
@@ -528,7 +530,7 @@ function renderSummary() {
   const b = activeBilan();
   const v = victimSummary(state);
   const st = detresseStatus(state);
-  document.getElementById('summary').replaceChildren(
+  document.getElementById('summary').replaceChildren(...[
     h('div', { class: 'who' },
       h('strong', {}, v.name || `Victime ${b.n}`),
       h('span', { class: 'meta' }, [v.heure, `n° ${b.n}`].filter(Boolean).join(' · '))),
@@ -536,7 +538,8 @@ function renderSummary() {
       ? h('div', { class: 'chips' }, v.who ? h('span', { class: 'chip' }, v.who) : null,
         ...v.types.map((t) => h('span', { class: 'chip' }, t)))
       : null,
-    h('span', { class: `status ${st.level}` }, st.text));
+    h('span', { class: `status ${st.level}` }, st.text),
+  ].filter(Boolean));
 }
 
 // Texte d'une section, avec les lignes de détresse mises en évidence.
@@ -767,7 +770,8 @@ function closeSheet() {
 const $ = (id) => document.getElementById(id);
 
 function fitStandaloneHeight() {
-  if (!(navigator.standalone && /iPhone/.test(navigator.userAgent))) return;
+  const installed = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  if (!(installed && /iPhone/.test(navigator.userAgent))) return;
   const portrait = matchMedia('(orientation: portrait)').matches;
   const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
   document.documentElement.style.setProperty('--app-h', `${h}px`);
@@ -795,5 +799,13 @@ refresh();
 go(current, 'swap');
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    saveNow();
+    location.reload();
+  });
+  navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
 }

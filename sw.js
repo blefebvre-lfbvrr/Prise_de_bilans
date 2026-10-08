@@ -1,6 +1,6 @@
 // Cache hors-ligne : l'application fonctionne sans réseau une fois ouverte.
 // Aucune donnée de bilan ne transite par ce fichier.
-const CACHE = 'bilans-v7';
+const CACHE = 'bilans-v8';
 const FILES = [
   './',
   'index.html',
@@ -15,8 +15,16 @@ const FILES = [
   'icons/apple-touch-icon.png',
 ];
 
+// Toujours la dernière version du serveur (jamais une copie périmée du navigateur),
+// pour ne pas mélanger anciens et nouveaux fichiers.
+const fresh = (req) => fetch(req, { cache: 'no-cache' });
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.all(FILES.map((f) => fresh(f).then((res) => c.put(f, res)))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -27,14 +35,16 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Réseau d'abord (pour recevoir les mises à jour), cache en secours.
+// Réseau d'abord (pour recevoir les mises à jour), cache en secours hors ligne.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fresh(e.request)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+        }
         return res;
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true })),
