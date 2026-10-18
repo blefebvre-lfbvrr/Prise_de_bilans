@@ -159,7 +159,7 @@ export function detresseLines(s) {
 export function arriveeText(s) {
   const parts = [s.arr_position, s.arr_conscience, s.arr_conscience !== 'inconsciente' ? s.arr_orientation : null].filter(Boolean);
   if (!parts.length) return '';
-  return `À son arrivée au PSA la victime est ${joinEt(parts)}.`;
+  return `À son arrivée au poste de secours avec les secouristes, la victime est ${joinEt(parts)}.`;
 }
 
 export function signesText(s) {
@@ -277,3 +277,23 @@ export function victimSummary(s) {
     .filter(Boolean);
   return { name, who, heure: s.heure_pec ? fmtTime(s.heure_pec) : '', types };
 }
+
+// ---------------------------------------------------------------------------
+// Saisie d'une tension : « 13287 » → « 132/87 ». La barre est ajoutée dès que la
+// systolique est complète : 3 chiffres si elle commence par 1 ou 2, sinon 2.
+// En effaçant, la barre n'est pas remise aussitôt.
+// ---------------------------------------------------------------------------
+export function formatTA(raw, deleting = false) {
+  const s = String(raw ?? '');
+  const [a, ...rest] = s.split('/');
+  const sys = a.replace(/\D/g, '');
+  // Barre déjà présente après la systolique (ajoutée ou tapée) : on la garde.
+  if (rest.length && sys) return `${sys.slice(0, 3)}/${rest.join('').replace(/\D/g, '').slice(0, 3)}`;
+  // Sinon (pas de barre, ou barre mal placée) : on repart des seuls chiffres.
+  const d = s.replace(/\D/g, '');
+  const sysLen = /^[12]/.test(d) ? 3 : 2;
+  if (d.length < sysLen) return d;
+  if (d.length === sysLen) return deleting ? d : `${d}/`;
+  return `${d.slice(0, sysLen)}/${d.slice(sysLen, sysLen + 3)}`;
+}
+

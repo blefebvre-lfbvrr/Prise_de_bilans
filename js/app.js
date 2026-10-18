@@ -1,6 +1,6 @@
 import { TABS, SIGNES_DETRESSE, SURV_FIELDS, has } from './schema.js';
 import {
-  buildReport, computeAge, detresseStatus, expandFields, gcsTotal, identiteRows, isVisible, suggestions, victimSummary,
+  arriveeText, buildReport, computeAge, detresseStatus, expandFields, formatTA, gcsTotal, identiteRows, isVisible, suggestions, victimSummary,
 } from './report.js';
 
 // ---------------------------------------------------------------------------
@@ -163,7 +163,13 @@ function renderInput(f, id) {
       autocapitalize: f.autocap || (f.type === 'text' ? 'sentences' : undefined),
     });
   }
-  el.addEventListener('input', () => setValue(f.name, el.value));
+  el.addEventListener('input', (e) => {
+    if (f.ta) {
+      const v = formatTA(el.value, e.inputType?.startsWith('delete'));
+      if (v !== el.value) el.value = v;
+    }
+    setValue(f.name, el.value);
+  });
   bind(f.name, (v) => {
     const next = v === undefined ? '' : String(v);
     if (el.value !== next) el.value = next;
@@ -271,7 +277,14 @@ function renderSurveillance(f) {
       const id = `surv-${i}-${sf.k}-${uid++}`;
       const inp = h('input', { id, type: 'text', inputmode: sf.mode, placeholder: sf.placeholder, autocomplete: 'off' });
       inp.value = e[sf.k] ?? '';
-      inp.addEventListener('input', () => { e[sf.k] = inp.value; refresh(); });
+      inp.addEventListener('input', (ev) => {
+        if (sf.ta) {
+          const v = formatTA(inp.value, ev.inputType?.startsWith('delete'));
+          if (v !== inp.value) inp.value = v;
+        }
+        e[sf.k] = inp.value;
+        refresh();
+      });
       return h('div', { class: 'surv-field' },
         h('label', { for: id }, sf.l, sf.suffix ? h('span', { class: 'unit' }, ` ${sf.suffix}`) : null), inp);
     }));
@@ -319,7 +332,8 @@ function renderSurvRef(el) {
   const s = state;
   const parts = [
     s.fc && `FC ${s.fc}`,
-    (s.ta_g || s.ta_d) && `TA ${s.ta_g || s.ta_d}`,
+    s.ta_d && `TAD ${s.ta_d}`,
+    s.ta_g && `TAG ${s.ta_g}`,
     s.fr && `FR ${s.fr}`,
     s.sat && `Sat ${s.sat} %${s.sat_sous === 'O2' ? ' O2' : ''}`,
     gcsTotal(s) && `Glasgow ${gcsTotal(s)}`,
@@ -336,6 +350,7 @@ function renderSurvRef(el) {
 }
 
 let suggestBox;
+let arriveePreview;
 const sdBlocks = [];
 function renderDetresseGroup(g, section) {
   for (const f of g.fields) {
@@ -352,9 +367,13 @@ function renderDetresseGroup(g, section) {
 
 function renderGroup(g) {
   const section = h('section', { class: `group${g.spe ? ' spe' : ''}` }, h('h2', {}, g.title));
-  if (g.hint) section.append(h('p', { class: 'hint' }, g.hint));
+  if (g.hint) [].concat(g.hint).forEach((line) => section.append(h('p', { class: 'hint' }, line)));
   if (g.id === 'detresses_vitales') renderDetresseGroup(g, section);
   else for (const f of expandFields(g.fields)) section.append(renderField(f));
+  if (g.id === 'arrivee') {
+    arriveePreview = h('p', { class: 'preview' });
+    section.append(arriveePreview);
+  }
   if (g.spe || g.show) {
     conditionals.push({ el: section, item: { show: (s) => (!g.spe || has(s, 'detresse', g.spe)) && isVisible(g, s) } });
   }
@@ -604,6 +623,11 @@ function refresh({ animate = false } = {}) {
   }
   updateSuggestions();
   updateSurvRef();
+  if (arriveePreview) {
+    const phrase = arriveeText(state);
+    arriveePreview.hidden = !phrase;
+    arriveePreview.textContent = phrase ? `Dans le bilan : « ${phrase} »` : '';
+  }
   updateProgress();
   updateHeader();
   if (ALL_TABS[current]?.id === 'bilan') renderReport();

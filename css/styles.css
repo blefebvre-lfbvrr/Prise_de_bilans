@@ -415,6 +415,15 @@ body.scrubbing .rail .tab[aria-selected="true"] svg { animation: none; }
   vertical-align: 2px;
 }
 .hint { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.preview {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--sel-soft);
+  color: var(--sel);
+  font-size: 14px;
+  font-weight: 600;
+}
 .hint.small { margin: 12px 0 0; font-size: 13px; text-align: center; }
 
 .reveal { animation: reveal .32s var(--ease); }

@@ -211,8 +211,13 @@ export const TABS = [
     groups: [
       {
         id: 'arrivee',
-        title: 'À l’arrivée au PSA',
+        title: 'Signes particuliers (une fois avec les secours)',
+        hint: [
+          '→ Dans cette partie on renseigne le bilan en commençant par la situation initiale, une fois arrivé dans le PSA, puis le bilan complet.',
+          'Exemple : « À son arrivée au poste de secours avec les secouristes, la victime est debout, consciente et orientée. »',
+        ],
         fields: [
+          { type: 'subtitle', label: 'À l’arrivée au PSA' },
           {
             type: 'radio',
             name: 'arr_position',
@@ -682,8 +687,13 @@ export const TABS = [
             help: 'BFRS : bien frappé, régulier, symétrique',
             out: (v, s) => (s.fc ? `FC ${s.fc}${v ? ' ' + v : ''}` : null),
           },
-          text('ta_g', 'TA gauche', { placeholder: '132/87', inputmode: 'numeric', fmt: (v) => `TA Gauche ${v}` }),
-          text('ta_d', 'TA droite', { placeholder: '126/89', inputmode: 'numeric', fmt: (v) => `TA Droite ${v}` }),
+          text('ta_ref', 'TA de référence (habituelle)', {
+            placeholder: '120/80', inputmode: 'numeric', ta: true,
+            help: 'Tension habituelle de la victime, si elle la connaît.',
+            fmt: (v) => `TA de référence ${v}`,
+          }),
+          text('ta_d', 'TA droite (TAD)', { placeholder: '126/89', inputmode: 'numeric', ta: true, fmt: (v) => `TAD ${v}` }),
+          text('ta_g', 'TA gauche (TAG)', { placeholder: '132/87', inputmode: 'numeric', ta: true, fmt: (v) => `TAG ${v}` }),
           {
             type: 'radio',
             name: 'trc',
@@ -837,7 +847,7 @@ export const TABS = [
 // Champs d'une série de constantes du bilan complémentaire.
 export const SURV_FIELDS = [
   { k: 'fc', l: 'FC', suffix: 'bpm', mode: 'numeric' },
-  { k: 'ta', l: 'TA', placeholder: '120/80', mode: 'numeric' },
+  { k: 'ta', l: 'TA', placeholder: '120/80', mode: 'numeric', ta: true },
   { k: 'fr', l: 'FR', suffix: '/min', mode: 'numeric' },
   { k: 'sat', l: 'Sat', suffix: '%', mode: 'numeric' },
   { k: 'gcs', l: 'Glasgow', mode: 'numeric' },

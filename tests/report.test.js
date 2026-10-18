@@ -82,3 +82,25 @@ test('pas de lignes vides quand une partie n’est pas renseignée', async () =>
   const { signesText } = await import('../js/report.js');
   assert.equal(signesText({ detresse: ['malaise', 'intox'], dernier_repas: 'ce midi', sat_sous: 'AA', gly_unite: 'mmol/L' }), 'Dernier repas ce midi');
 });
+
+test('tension : barre ajoutée automatiquement', async () => {
+  const { formatTA } = await import('../js/report.js');
+  const type = (keys) => { let v = ''; for (const k of keys) v = formatTA(v + k); return v; };
+  assert.equal(type('13287'), '132/87');
+  assert.equal(type('9560'), '95/60');
+  assert.equal(type('210110'), '210/110');
+  assert.equal(formatTA('132', true), '132');      // la barre vient d'être effacée
+  assert.equal(formatTA('132/8'), '132/8');
+  assert.equal(formatTA('12/8'), '12/8');          // barre tapée à la main
+  assert.equal(formatTA('1328799'), '132/879');
+  assert.equal(formatTA(''), '');
+  assert.equal(formatTA('/87132/87'), '87/132');   // barre mal placée : on repart des chiffres
+  assert.equal(formatTA('/'), '');
+});
+
+test('TAD / TAG, TA de référence et arrivée au poste de secours', () => {
+  const r = buildReport({ ta_ref: '120/80', ta_d: '126/89', ta_g: '128/85', arr_position: 'debout', arr_conscience: 'consciente', arr_orientation: 'orientée' });
+  const signes = r.sections.find((x) => x.id === 'signes').text;
+  assert.match(signes, /TA de référence 120\/80\nTAD 126\/89\nTAG 128\/85/);
+  assert.match(signes, /À son arrivée au poste de secours avec les secouristes, la victime est debout, consciente et orientée\./);
+});
