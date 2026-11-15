@@ -2,6 +2,7 @@ import { TABS, SIGNES_DETRESSE, SURV_FIELDS, has } from './schema.js';
 import {
   arriveeText, buildReport, computeAge, detresseStatus, expandFields, formatTA, gcsTotal, identiteRows, isVisible, suggestions, victimSummary,
 } from './report.js';
+import { initRevision } from './revision.js';
 
 // ---------------------------------------------------------------------------
 // Bilans (un par victime), gardés uniquement dans le navigateur du téléphone.
@@ -592,7 +593,7 @@ function go(i, how) {
   else if (scrubbing) panel.animate?.([{ opacity: 0.45 }, { opacity: 1 }], { duration: 140, easing: 'ease-out' });
   moveIndicator();
 
-  document.getElementById('btn-prev').disabled = current === 0;
+  document.getElementById('btn-prev').textContent = current === 0 ? '‹ Accueil' : '‹ Précédent';
   const last = current === ALL_TABS.length - 1;
   document.getElementById('btn-next').textContent = last
     ? 'Enregistrer'
@@ -934,15 +935,46 @@ function closeSheet() {
 }
 
 // ---------------------------------------------------------------------------
-// Démarrage
+// Modes : accueil, bilan, cours, quiz. Le formulaire de bilan ne s'affiche qu'en mode bilan.
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
+const MODES = { accueil: 'Prise de bilans', bilan: 'Prise de bilans', cours: 'Cours', quiz: 'Quiz' };
+const MODE_KEY = 'prise-de-bilans:mode';
+let mode = 'accueil';
+
+// État des bilans en cours, pour la carte « Reprendre » de l'accueil.
+function bilansInfo() {
+  const b = activeBilan();
+  const base = Object.keys(defaults());
+  const started = store.bilans.some((x) => Object.keys(x.state).some((k) => !base.includes(k)));
+  return { count: store.bilans.length, started, title: victimTitle(b), status: detresseStatus(b.state).text };
+}
+
+function setMode(next) {
+  mode = MODES[next] ? next : 'accueil';
+  document.body.dataset.mode = mode;
+  for (const m of ['accueil', 'cours', 'quiz']) $(`view-${m}`).hidden = m !== mode;
+  $('brand-name').textContent = MODES[mode];
+  closeSheet();
+  try { sessionStorage.setItem(MODE_KEY, mode); } catch { /* ignoré */ }
+  if (mode === 'bilan') {
+    // La barre latérale n'était pas affichée : on ajuste ses noms maintenant.
+    fitRailLabels();
+    play($('main'), 'swap');
+  } else revision.show(mode);
+}
+
+const revision = initRevision({ h, svg, haptic, play, setMode, bilansInfo });
+
+// ---------------------------------------------------------------------------
+// Démarrage
+// ---------------------------------------------------------------------------
 window.addEventListener('resize', () => fitRailLabels());
 
 
 renderTabs();
 setupRailScrub();
-$('btn-prev').addEventListener('click', () => go(current - 1));
+$('btn-prev').addEventListener('click', () => (current === 0 ? setMode('accueil') : go(current - 1)));
 $('btn-next').addEventListener('click', () => (current === ALL_TABS.length - 1 ? share() : go(current + 1)));
 $('btn-share').addEventListener('click', share);
 setupSettings();
@@ -955,10 +987,16 @@ twoStep($('btn-delete-current'), 'Confirmer la suppression', () => deleteBilan(s
 $('sheet-backdrop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
+$('btn-home').addEventListener('click', () => { if (mode !== 'accueil') { haptic(); setMode('accueil'); } });
+$('btn-home-pill').addEventListener('click', () => { haptic(); setMode('accueil'); });
+
 current = activeBilan().tab || 0;
-fitRailLabels();
 refresh();
 go(current, 'swap');
+// À l'ouverture : l'accueil. Après un rechargement en cours d'utilisation : là où on était.
+let startMode = 'accueil';
+try { startMode = sessionStorage.getItem(MODE_KEY) || 'accueil'; } catch { /* ignoré */ }
+setMode(startMode);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   const hadController = !!navigator.serviceWorker.controller;

@@ -19,10 +19,12 @@
 <body>
   <div class="chrome" id="chrome">
   <header class="topbar">
-    <div class="brand">
+    <button type="button" class="brand" id="btn-home" aria-label="Retour à l’accueil">
+      <span class="back" aria-hidden="true"></span>
       <span class="logo" aria-hidden="true">PdB</span>
-      <span class="brand-name">Prise de bilans</span>
-    </div>
+      <span class="brand-name" id="brand-name">Prise de bilans</span>
+    </button>
+    <button type="button" class="victim-switch home-pill" id="btn-home-pill">Accueil</button>
     <button type="button" class="victim-switch" id="btn-victims" aria-haspopup="dialog" aria-controls="sheet">
       <span class="victim-dot" id="victim-dot" aria-hidden="true"></span>
       <span class="victim-label" id="victim-label">Victime 1</span>
@@ -98,6 +100,10 @@
       </div>
     </section>
   </main>
+
+  <section class="view" id="view-accueil" hidden></section>
+  <section class="view" id="view-cours" hidden></section>
+  <section class="view" id="view-quiz" hidden></section>
 
   <footer class="bottombar">
     <button type="button" class="btn" id="btn-prev">‹ Précédent</button>
