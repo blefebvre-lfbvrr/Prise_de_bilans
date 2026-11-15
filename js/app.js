@@ -1,7 +1,7 @@
 import { TABS, SIGNES_DETRESSE, SURV_FIELDS, has, optLabel } from './schema.js';
 import { MEMO_SPE } from './cours.js';
 import {
-  SPE_MEMO, avisText, circProposition, coherence, horsNorme, noteBilan, rappelDefaut, rappelEtat, speSuggestions, tendance, valeurInitiale,
+  SPE_MEMO, avisText, circProposition, coherence, horsNorme, rappelDefaut, rappelEtat, speSuggestions, tendance, valeurInitiale,
 } from './outils.js';
 import {
   arriveeText, buildReport, computeAge, detresseStatus, expandFields, formatTA, gcsTotal, identiteRows, isVisible, suggestions, victimSummary,
@@ -906,7 +906,6 @@ function renderReport() {
   box.replaceChildren(h('strong', {}, 'Non renseigné'), h('ul', {}, ...miss.map((x) => h('li', {}, x))));
   renderChecks2();
   $('avis-text').textContent = avisText(state);
-  if ($('note-box').open) renderNote();
 }
 
 // Vérifications de cohérence : chaque point mène à l'étape à corriger.
@@ -920,19 +919,6 @@ function renderChecks2() {
   return list;
 }
 
-function renderNote() {
-  const r = noteBilan(state);
-  $('note-pill').textContent = `${String(r.note).replace('.', ',')} / 20`;
-  const todo = r.criteres.filter((c) => !c.ok);
-  $('note-body').replaceChildren(
-    h('p', { class: `score note ${r.note >= 16 ? 'good' : r.note >= 10 ? 'mid' : 'low'}` }, h('strong', {}, String(r.note).replace('.', ',')), ' / 20'),
-    h('p', { class: 'hint' }, 'Note indicative : complétude du bilan et cohérence (−0,5 par point à vérifier). Elle ne juge pas le contenu clinique.'),
-    todo.length ? h('ul', { class: 'crit-list' }, ...todo.map((c) => h('li', { class: 'crit is-missing' },
-      h('span', { class: 'crit-mark', 'aria-hidden': 'true' }, '✗'),
-      h('button', { type: 'button', class: 'crit-txt link', onclick: () => go(ALL_TABS.findIndex((t) => t.id === c.tab)) }, h('strong', {}, c.label), h('span', {}, c.hint)),
-      h('span', { class: 'crit-pts' }, `0 / ${String(c.pts).replace('.', ',')}`)))) : h('p', {}, 'Tous les éléments attendus sont là.'),
-    r.malus ? h('p', { class: 'hint' }, `Points à vérifier : −${String(r.malus).replace('.', ',')}`) : null);
-}
 
 // ---------------------------------------------------------------------------
 // Export : Notes (feuille de partage) et presse-papiers
@@ -1018,7 +1004,6 @@ function setupSettings() {
     }));
   });
   $('btn-copy-avis').addEventListener('click', (e) => copy(avisText(state), 'Message copié', e.currentTarget));
-  $('note-box').addEventListener('toggle', () => { if ($('note-box').open) renderNote(); });
   setInterval(() => { updateSurvChip(); updateRappelUI(); }, 15000);
   $('surv-chip').addEventListener('click', () => {
     haptic();

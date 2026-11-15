@@ -1,6 +1,6 @@
 // Aides à la rédaction du bilan : vérifications avant l'envoi, rappel de surveillance,
 // message pour l'avis médical, propositions (circonstanciel, bilan spé), repères des
-// constantes et note d'entraînement. Fonctions pures : elles ne lisent que l'état du bilan.
+// constantes. Fonctions pures : elles ne lisent que l'état du bilan.
 import { DETRESSES, SIGNES_DETRESSE, de, has, fmtTime, joinEt, optLabel, optOut } from './schema.js';
 import { gcsTotal, suggestions } from './report.js';
 
@@ -226,48 +226,4 @@ export function valeurInitiale(s, k) {
     case 'eva': return s.th_eva_repos ?? s.ab_eva_repos ?? s.tr_eva_repos ?? s.cephalees_eva;
     default: return s[k];
   }
-}
-
-// ---------------------------------------------------------------------------
-// 8. Note d'entraînement d'un bilan réel, sur 20.
-// ---------------------------------------------------------------------------
-export function noteBilan(s) {
-  const sel = s.detresse || [];
-  const C = [];
-  const c = (pts, label, ok, hint, tab) => C.push({ pts, label, ok: !!ok, hint, tab });
-  const spePlein = (prefix) => Object.keys(s).filter((k) => k.startsWith(prefix) && filled(s[k])).length;
-  const SPE_PREFIX = { malaise: 'ml_', intox: 'ix_', thoracique: 'th_', respi: 'rs_', abdo: 'ab_', tc: 'tc_', trauma: 'tr_', plaie: 'pl_', autre: 'au_' };
-
-  c(1, 'Type de détresse choisi', sel.length, 'Choisir la ou les détresses : elles ouvrent les bilans spé.', 'detresse');
-  c(1, 'Sexe et âge', s.sexe && filled(s.age), 'Le circonstanciel commence par « Homme / Femme de … ans ».', 'identite');
-  c(1.5, 'Histoire ou plainte', filled(s.histoire) || filled(s.plainte), 'Dire ce qui amène la victime et de quoi elle se plaint.', 'circonstances');
-  c(1, 'Arrivée jusqu’aux secours', s.decouverte, 'Comment la victime arrive : se présente, retrouvée, amenée…', 'circonstances');
-  c(1, 'Situation à l’arrivée (position, conscience)', s.arr_position && s.arr_conscience, 'Position et conscience à l’arrivée au PSA.', 'signes');
-  c(1.5, 'Signes de détresse évalués (neuro, respi, circu)', SIGNES_DETRESSE.every((sd) => (s[sd.name] || []).length), 'Cocher les signes de détresse ou « Aucun » pour chacune.', 'signes');
-  for (const v of sel) {
-    const pre = SPE_PREFIX[v];
-    if (pre) c(1.5, `Bilan spé ${DETRESSES.find((d) => d.v === v).l.toLowerCase()}`, spePlein(pre) >= (v === 'autre' ? 1 : 3), 'Renseigner au moins 3 éléments du bilan spé.', 'signes');
-  }
-  c(1, 'Glasgow', gcsTotal(s), 'Le score de Glasgow.', 'bilans');
-  c(0.5, 'OST, MS4M, PCI', filled(s.ost) && filled(s.ms4m) && filled(s.pci), 'Orientation, motricité / sensibilité, perte de connaissance.', 'bilans');
-  c(0.5, 'Pupilles', s.pupilles, 'L’état des pupilles.', 'bilans');
-  c(1, 'FC et qualité du pouls', filled(s.fc) && s.fc_qual, 'FC et pouls (BFRS, filant…).', 'bilans');
-  const deuxBras = sel.includes('thoracique') || s.fast === 'positif';
-  c(1, deuxBras ? 'TA aux deux bras' : 'Tension', deuxBras ? filled(s.ta_d) && filled(s.ta_g) : filled(s.ta_d) || filled(s.ta_g), deuxBras ? 'Douleur thoracique ou AVC : TA droite et gauche.' : 'La tension.', 'bilans');
-  c(0.5, 'TRC', s.trc, 'Le temps de recoloration cutanée.', 'bilans');
-  c(1, 'FR et qualité de la respiration', filled(s.fr) && s.fr_qual, 'FR et respiration (ARS…).', 'bilans');
-  c(0.5, 'Saturation', filled(s.sat), 'La saturation (air ambiant ou O2).', 'bilans');
-  c(0.5, 'Température', filled(s.temp), 'La température.', 'bilans');
-  c(sel.includes('malaise') ? 1 : 0.5, 'Glycémie', filled(s.gly), 'La glycémie.', 'bilans');
-  c(1.5, 'ATCD, traitements, allergies', filled(s.atcd) && filled(s.traitements) && filled(s.allergies), 'Les trois, même pour noter « Aucun ».', 'bilans');
-  c(1, 'Gestes notés, dont le bilan', (geste(s, 'bilan_complet') || geste(s, 'bilan_trauma')), 'Noter le bilan complet ou trauma dans les gestes.', 'gestes');
-  c(0.5, 'Surveillance', geste(s, 'surveillance') || (s.surv || []).length, 'Noter la surveillance.', 'gestes');
-  if (hasDetresse(s)) c(1, 'Nouvelle série de constantes', (s.surv || []).length, 'Victime en détresse : recontrôler les constantes (bilan complémentaire).', 'complementaire');
-
-  const alertes = coherence(s);
-  const total = C.reduce((a, x) => a + x.pts, 0);
-  const got = C.reduce((a, x) => a + (x.ok ? x.pts : 0), 0);
-  const malus = Math.min(3, alertes.length * 0.5);
-  const note = Math.max(0, Math.round(((got / total) * 20 - malus) * 2) / 2);
-  return { note, criteres: C, alertes, malus };
 }

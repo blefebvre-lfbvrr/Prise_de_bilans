@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { coherence, avisText, noteBilan, rappelEtat, circProposition, speSuggestions, horsNorme, tendance } from '../js/outils.js';
+import { coherence, avisText, rappelEtat, circProposition, speSuggestions, horsNorme, tendance } from '../js/outils.js';
 import { gestesText } from '../js/report.js';
 
 const thoracique = {
@@ -69,11 +69,4 @@ test('repères et tendance', () => {
   assert.equal(horsNorme('ta', '85/50'), true);
   assert.equal(horsNorme('gly', '0.5', 'g/L'), true);
   assert.equal(tendance('ta', '120/80', '140/90'), '↓');
-});
-
-test('note du bilan', () => {
-  assert.equal(noteBilan({}).note, 0);
-  const complet = { ...thoracique, ta_g: '154/92', gestes: ['bilan_complet', 'avis', 'surveillance'], surv: [{ heure: '14:20', fc: '90' }] };
-  assert.equal(noteBilan(complet).note, 20);
-  assert.ok(noteBilan(thoracique).note < 18);
 });
