@@ -31,3 +31,11 @@ test('cours : chapitres uniques, thèmes de quiz existants', () => {
   for (const t of THEMES) if (t.chapitre) assert.ok(CHAPITRES.some((c) => c.id === t.chapitre), t.id);
   assert.equal(MEMO_SPE.length, 13);
 });
+
+test('le compteur de lecture repart chaque lundi', async () => {
+  const { mondayOf } = await import('../js/revision.js');
+  assert.equal(mondayOf(new Date(2026, 10, 15)), '2026-11-09'); // dimanche
+  assert.equal(mondayOf(new Date(2026, 10, 16)), '2026-11-16'); // lundi
+  assert.equal(mondayOf(new Date(2026, 10, 18, 23, 30)), '2026-11-16');
+  assert.equal(mondayOf(new Date(2027, 0, 1)), '2026-12-28');
+});

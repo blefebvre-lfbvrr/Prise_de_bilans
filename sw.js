@@ -1,6 +1,6 @@
 // Cache hors-ligne : l'application fonctionne sans réseau une fois ouverte.
 // Aucune donnée de bilan ne transite par ce fichier.
-const CACHE = 'bilans-v17';
+const CACHE = 'bilans-v18';
 const FILES = [
   './',
   'index.html',

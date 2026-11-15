@@ -17,6 +17,12 @@ const ICONS = {
   quiz: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
 };
 
+// Date (AAAA-MM-JJ, heure locale) du lundi de la semaine de `d`.
+export function mondayOf(d) {
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-${String(m.getDate()).padStart(2, '0')}`;
+}
+
 export function initRevision(api) {
   const { h, svg, haptic, play, setMode, bilansInfo } = api;
   const views = Object.fromEntries(['accueil', 'cours', 'quiz', 'situation'].map((m) => [m, document.getElementById(`view-${m}`)]));
@@ -25,6 +31,13 @@ export function initRevision(api) {
   const prog = { lus: [], scores: {}, notes: {} };
   try { Object.assign(prog, JSON.parse(localStorage.getItem(KEY)) || {}); } catch { /* ignoré */ }
   const saveProg = () => { try { localStorage.setItem(KEY, JSON.stringify(prog)); } catch { /* ignoré */ } };
+  // La lecture du cours repart de zéro chaque lundi : on relit tout dans la semaine.
+  function checkWeek() {
+    const week = mondayOf(new Date());
+    if (prog.semaine === week) return;
+    prog.semaine = week; prog.lus = []; saveProg();
+  }
+  checkWeek();
   // Chapitre ouvert, pour le retrouver après un rechargement.
   const nav = { chapitre: null, situation: null, corrige: false, random: false };
   try { Object.assign(nav, JSON.parse(sessionStorage.getItem(NAV_KEY)) || {}); } catch { /* ignoré */ }
@@ -36,6 +49,7 @@ export function initRevision(api) {
 
   // ------------------------------------------------------------------ Accueil
   function renderHome() {
+    checkWeek();
     const info = bilansInfo();
     const best = Object.values(prog.scores).reduce((m, s) => Math.max(m, s.best || 0), 0);
     const card = (cls, ic, title, sub, chips, go) => h('button', { type: 'button', class: `home-card ${cls}`, onclick: () => { haptic(); go(); } },
@@ -49,7 +63,7 @@ export function initRevision(api) {
         info.started ? info.title : 'Étape par étape, prêt à coller dans ARGOS.',
         info.started ? [info.status, ...(info.count > 1 ? [`${info.count} bilans en cours`] : [])] : [], () => setMode('bilan')),
       card('', ICONS.cours, 'Relire le cours', 'La prise de bilan, les bilans spé, des exemples rédigés.',
-        [`${prog.lus.length} / ${CHAPITRES.length} chapitres lus`], () => { nav.chapitre = null; setMode('cours'); }),
+        [`${prog.lus.length} / ${CHAPITRES.length} chapitres lus cette semaine`], () => { nav.chapitre = null; setMode('cours'); }),
       card('', ICONS.quiz, 'Faire un quiz', `${QUIZ_LEN} questions par thème, corrigées au fur et à mesure.`,
         [best ? `Meilleur score ${best} / ${QUIZ_LEN}` : 'Pas encore de score'], () => setMode('quiz')),
       card('', ICONS.situation, 'Mise en situation', 'Un cas concret : rédigez le bilan complet, il est noté sur 20.',
@@ -59,11 +73,12 @@ export function initRevision(api) {
 
   // ------------------------------------------------------------------ Cours
   function renderSommaire() {
+    checkWeek();
     nav.chapitre = null; saveNav();
     const done = prog.lus.length;
     fill(views.cours, h('div', { class: 'lesson' },
       h('h1', {}, 'Cours'),
-      h('p', { class: 'lead' }, `${done} chapitre${done > 1 ? 's' : ''} lu${done > 1 ? 's' : ''} sur ${CHAPITRES.length}`),
+      h('p', { class: 'lead' }, `${done} chapitre${done > 1 ? 's' : ''} lu${done > 1 ? 's' : ''} sur ${CHAPITRES.length} cette semaine. Le compteur repart à zéro chaque lundi.`),
       h('div', { class: 'meter' }, h('span', { style: `width:${(done / CHAPITRES.length) * 100}%` })),
       h('div', { class: 'toc' }, ...CHAPITRES.map((c, i) => h('button', { type: 'button', class: `toc-row${prog.lus.includes(c.id) ? ' lu' : ''}`, onclick: () => { haptic(); renderChapitre(c.id); } },
         h('span', { class: 'toc-n' }, String(i + 1)),
