@@ -3,27 +3,30 @@ import { CHAPITRES, MEMO_SPE, SPE_NOTES } from './cours.js';
 import { THEMES, drawQuiz, pool } from './quiz.js';
 import { TABS, DETRESSES, getField } from './schema.js';
 import { expandFields } from './report.js';
+import { SITUATIONS, PART_LABELS, grade } from './situations.js';
 
 const KEY = 'prise-de-bilans:revision';
 const NAV_KEY = 'prise-de-bilans:revision-nav';
 const QUIZ_LEN = 10;
+const DRAFT_KEY = 'prise-de-bilans:situations';
 
 const ICONS = {
   bilan: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14h6"/><path d="M12 17v-6"/>',
   cours: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+  situation: '<path d="M12 20h9"/><path d="M16.38 3.62a1 1 0 0 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86z"/>',
   quiz: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
 };
 
 export function initRevision(api) {
   const { h, svg, haptic, play, setMode, bilansInfo } = api;
-  const views = { accueil: document.getElementById('view-accueil'), cours: document.getElementById('view-cours'), quiz: document.getElementById('view-quiz') };
+  const views = Object.fromEntries(['accueil', 'cours', 'quiz', 'situation'].map((m) => [m, document.getElementById(`view-${m}`)]));
 
   // Progression gardée sur le téléphone : chapitres lus et meilleurs scores.
-  const prog = { lus: [], scores: {} };
+  const prog = { lus: [], scores: {}, notes: {} };
   try { Object.assign(prog, JSON.parse(localStorage.getItem(KEY)) || {}); } catch { /* ignoré */ }
   const saveProg = () => { try { localStorage.setItem(KEY, JSON.stringify(prog)); } catch { /* ignoré */ } };
   // Chapitre ouvert, pour le retrouver après un rechargement.
-  const nav = { chapitre: null };
+  const nav = { chapitre: null, situation: null, corrige: false };
   try { Object.assign(nav, JSON.parse(sessionStorage.getItem(NAV_KEY)) || {}); } catch { /* ignoré */ }
   const saveNav = () => { try { sessionStorage.setItem(NAV_KEY, JSON.stringify(nav)); } catch { /* ignoré */ } };
 
@@ -49,6 +52,8 @@ export function initRevision(api) {
         [`${prog.lus.length} / ${CHAPITRES.length} chapitres lus`], () => { nav.chapitre = null; setMode('cours'); }),
       card('', ICONS.quiz, 'Faire un quiz', `${QUIZ_LEN} questions par thème, corrigées au fur et à mesure.`,
         [best ? `Meilleur score ${best} / ${QUIZ_LEN}` : 'Pas encore de score'], () => setMode('quiz')),
+      card('', ICONS.situation, 'Mise en situation', 'Un cas concret : rédigez le bilan complet, il est noté sur 20.',
+        [bestNote() != null ? `Meilleure note ${fmtNote(bestNote())} / 20` : `${SITUATIONS.length} situations`], () => { nav.situation = null; setMode('situation'); }),
       h('p', { class: 'home-foot' }, 'Bilans, lecture et scores restent sur ce téléphone. Rien n’est envoyé sur Internet.')));
   }
 
@@ -218,11 +223,121 @@ export function initRevision(api) {
     quiz = null;
   }
 
+  // ------------------------------------------------------------------ Mises en situation
+  // Brouillons gardés sur le téléphone, pour ne rien perdre en changeant d'écran.
+  const drafts = {};
+  try { Object.assign(drafts, JSON.parse(localStorage.getItem(DRAFT_KEY)) || {}); } catch { /* ignoré */ }
+  const saveDrafts = () => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts)); } catch { /* ignoré */ } };
+  const fmtNote = (n) => String(n).replace('.', ',');
+  function bestNote() {
+    const v = Object.values(prog.notes || {}).map((x) => x.best);
+    return v.length ? Math.max(...v) : null;
+  }
+  const noteClass = (n) => (n >= 16 ? 'good' : n >= 10 ? 'mid' : 'low');
+
+  function renderSituations() {
+    nav.situation = null; nav.corrige = false; saveNav();
+    fill(views.situation, h('div', { class: 'lesson' },
+      h('h1', {}, 'Mise en situation'),
+      h('p', { class: 'lead' }, 'Lisez le contexte, puis rédigez le bilan comme dans ARGOS : circonstanciel, signes particuliers, gestes effectués. Le barème le note sur 20 et liste ce qui manque.'),
+      h('div', { class: 'toc' }, ...SITUATIONS.map((sc) => {
+        const n = prog.notes?.[sc.id];
+        const started = drafts[sc.id] && Object.values(drafts[sc.id]).some((x) => x && x.trim());
+        return h('button', { type: 'button', class: 'toc-row', onclick: () => { haptic(); renderCas(sc.id); } },
+          h('span', { class: 'toc-txt' }, h('strong', {}, sc.title), h('span', {}, `${sc.cat} · ${sc.niveau}${started && !n ? ' · brouillon en cours' : ''}`)),
+          h('span', { class: `toc-state${n ? ` score ${noteClass(n.best)}` : ''}` }, n ? `${fmtNote(n.best)} / 20` : ''));
+      }))));
+  }
+
+  const ctxBlock = (title, ...body) => h('section', { class: 'sit-block' }, h('p', { class: 'part' }, title), ...body);
+
+  function renderCas(id) {
+    const sc = SITUATIONS.find((x) => x.id === id) || SITUATIONS[0];
+    nav.situation = sc.id; nav.corrige = false; saveNav();
+    const d = drafts[sc.id] || (drafts[sc.id] = { circ: '', signes: '', gestes: '' });
+    const fields = [
+      ['circ', 'Circonstanciel', 'Homme / Femme de … ans qui… La victime se présente…', 4],
+      ['signes', 'Signes particuliers', 'Signes de détresse, situation à l’arrivée, plainte, constantes, ATCD / traitements / allergies…', 12],
+      ['gestes', 'Gestes effectués', 'Bilan complet, position, gestes, avis médical, surveillance…', 4],
+    ];
+    const grow = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + 2}px`; };
+    const areas = fields.map(([k, label, ph, rows]) => {
+      const t = h('textarea', { id: `sit-${k}`, rows: String(rows), placeholder: ph, autocapitalize: 'sentences', spellcheck: 'true' });
+      t.value = d[k] || '';
+      t.addEventListener('input', () => { d[k] = t.value; saveDrafts(); grow(t); });
+      return h('div', { class: 'field' }, h('label', { for: `sit-${k}` }, label), t);
+    });
+    const ok = h('button', { type: 'button', class: 'btn primary block', onclick: () => {
+      if (!Object.values(d).some((x) => x && x.trim())) { areas[0].querySelector('textarea').focus(); return; }
+      haptic(); renderCorrection(sc.id);
+    } }, 'Corriger mon bilan');
+    fill(views.situation, h('div', { class: 'lesson sit' },
+      crumb('Situations', renderSituations),
+      h('p', { class: 'eyebrow' }, `${sc.cat} · ${sc.niveau}`),
+      h('h1', {}, sc.title),
+      h('div', { class: 'sit-ctx' },
+        ctxBlock('Le contexte', h('p', { class: 'sit-lieu' }, sc.lieu), h('p', {}, sc.appel)),
+        ctxBlock('Ce que vous entendez', ...sc.raconte.map((x) => h('p', { class: 'sit-quote' }, x))),
+        ctxBlock('Ce que vous constatez', ul(sc.constate)),
+        ctxBlock('Vos mesures', h('dl', { class: 'lesson-defs' }, ...sc.mesures.map(([t, v]) => h('div', {}, h('dt', {}, t), h('dd', {}, v)))))),
+      h('h2', {}, 'Votre bilan'),
+      h('p', { class: 'lead small' }, 'Le brouillon est gardé sur le téléphone.'),
+      ...areas, ok));
+    requestAnimationFrame(() => areas.forEach((a) => { const t = a.querySelector('textarea'); if (t.value) grow(t); }));
+  }
+
+  function renderCorrection(id) {
+    const sc = SITUATIONS.find((x) => x.id === id) || SITUATIONS[0];
+    nav.situation = sc.id; nav.corrige = true; saveNav();
+    const d = drafts[sc.id] || { circ: '', signes: '', gestes: '' };
+    const r = grade(sc, d);
+    prog.notes = prog.notes || {};
+    const prev = prog.notes[sc.id]?.best;
+    prog.notes[sc.id] = { best: Math.max(prev ?? 0, r.note), last: r.note };
+    saveProg();
+    const todo = r.items.filter((i) => i.status !== 'ok');
+    const msg = r.note >= 18 ? 'Excellent bilan, complet et bien rangé.' : r.note >= 14 ? 'Bon bilan. Quelques éléments à ajouter.' : r.note >= 10 ? 'L’essentiel est là, mais il manque des éléments importants.' : 'Bilan incomplet : reprenez la structure et les points ci-dessous.';
+    const pts = (i) => (i.status === 'penalty' ? `−${fmtNote(i.pts)}` : `${fmtNote(i.got)} / ${fmtNote(i.pts)}`);
+    const row = (i) => h('li', { class: `crit is-${i.status}` },
+      h('span', { class: 'crit-mark', 'aria-hidden': 'true' }, i.status === 'ok' ? '✓' : i.status === 'misplaced' ? '↕' : '✗'),
+      h('span', { class: 'crit-txt' }, h('strong', {}, i.label),
+        i.status === 'misplaced' ? h('span', {}, `Présent, mais pas dans la bonne partie (attendu : ${PART_LABELS[i.part]}). ${i.hint}`) : null,
+        i.status === 'missing' || i.status === 'penalty' ? h('span', {}, i.hint) : null),
+      h('span', { class: 'crit-pts' }, pts(i)));
+    const groups = ['circ', 'signes', 'gestes', 'any'].map((p) => {
+      const list = todo.filter((i) => i.part === p);
+      return list.length ? h('div', { class: 'crit-group' }, h('p', { class: 'part' }, PART_LABELS[p]), h('ul', { class: 'crit-list' }, ...list.map(row))) : null;
+    });
+    const acquired = r.items.filter((i) => i.status === 'ok' && !i.penalty);
+    fill(views.situation, h('div', { class: 'lesson sit' },
+      crumb('Situations', renderSituations),
+      h('p', { class: 'eyebrow' }, sc.title),
+      h('p', { class: `score note ${noteClass(r.note)}` }, h('strong', {}, fmtNote(r.note)), ' / 20'),
+      h('p', { class: 'lead' }, msg + (prev != null && r.note > prev ? ' Nouvelle meilleure note.' : '')),
+      h('div', { class: 'lesson-nav' },
+        h('button', { type: 'button', class: 'btn primary', onclick: () => renderCas(sc.id) }, 'Compléter'),
+        h('button', { type: 'button', class: 'btn', onclick: renderSituations }, 'Autres cas')),
+      todo.length ? h('h2', {}, `Ce qu’il manque (${todo.length})`) : h('h2', {}, 'Rien ne manque'),
+      ...groups,
+      acquired.length ? accordion(`Acquis (${acquired.length})`, null, h('ul', { class: 'crit-list' }, ...acquired.map(row))) : null,
+      h('h2', {}, 'Le bilan attendu'),
+      h('article', { class: 'report-card example' },
+        ...[['Circonstanciel', sc.modele.circ], ['Signes particuliers', sc.modele.signes], ['Gestes effectués', sc.modele.gestes]]
+          .flatMap(([t, txt]) => [h('p', { class: 'part' }, t), h('pre', {}, txt)])),
+      accordion('Votre bilan', null,
+        ...[['Circonstanciel', d.circ], ['Signes particuliers', d.signes], ['Gestes effectués', d.gestes]]
+          .flatMap(([t, txt]) => [h('p', { class: 'part' }, t), h('pre', { class: 'lesson-lines' }, txt?.trim() || '—')])),
+      h('button', { type: 'button', class: 'btn danger block sit-reset', onclick: () => {
+        drafts[sc.id] = { circ: '', signes: '', gestes: '' }; saveDrafts(); renderCas(sc.id);
+      } }, 'Effacer et recommencer')));
+  }
+
   return {
     show(mode) {
       if (mode === 'accueil') renderHome();
       else if (mode === 'cours') (nav.chapitre ? renderChapitre(nav.chapitre) : renderSommaire());
       else if (mode === 'quiz' && !quiz) renderThemes();
+      else if (mode === 'situation') (nav.situation ? (nav.corrige ? renderCorrection(nav.situation) : renderCas(nav.situation)) : renderSituations());
     },
   };
 }

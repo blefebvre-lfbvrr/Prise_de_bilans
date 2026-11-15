@@ -935,10 +935,10 @@ function closeSheet() {
 }
 
 // ---------------------------------------------------------------------------
-// Modes : accueil, bilan, cours, quiz. Le formulaire de bilan ne s'affiche qu'en mode bilan.
+// Modes : accueil, bilan, cours, quiz, mise en situation. Le formulaire de bilan ne s'affiche qu'en mode bilan.
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
-const MODES = { accueil: 'Prise de bilans', bilan: 'Prise de bilans', cours: 'Cours', quiz: 'Quiz' };
+const MODES = { accueil: 'Prise de bilans', bilan: 'Prise de bilans', cours: 'Cours', quiz: 'Quiz', situation: 'Mise en situation' };
 const MODE_KEY = 'prise-de-bilans:mode';
 let mode = 'accueil';
 
@@ -953,7 +953,7 @@ function bilansInfo() {
 function setMode(next) {
   mode = MODES[next] ? next : 'accueil';
   document.body.dataset.mode = mode;
-  for (const m of ['accueil', 'cours', 'quiz']) $(`view-${m}`).hidden = m !== mode;
+  for (const m of ['accueil', 'cours', 'quiz', 'situation']) $(`view-${m}`).hidden = m !== mode;
   $('brand-name').textContent = MODES[mode];
   closeSheet();
   try { sessionStorage.setItem(MODE_KEY, mode); } catch { /* ignoré */ }
