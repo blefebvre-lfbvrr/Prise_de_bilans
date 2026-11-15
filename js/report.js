@@ -1,4 +1,4 @@
-import { TABS, SYMPTOMS, SIGNES_DETRESSE, DETRESSES, has, fmtTime, joinEt, optOut } from './schema.js';
+import { TABS, SYMPTOMS, SIGNES_DETRESSE, DETRESSES, de, has, fmtTime, joinEt, optOut } from './schema.js';
 
 const isEmpty = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
 const toLines = (x) => (Array.isArray(x) ? x.filter((l) => !isEmpty(l)) : isEmpty(x) ? [] : [x]);
@@ -122,10 +122,10 @@ export function circonstancielText(s) {
   if (histoire) {
     const startsLower = /^[a-zà-ÿ]/.test(histoire);
     let first = startsLower ? `${intro} qui ${histoire}` : `${intro}. ${histoire}`;
-    if (plainte) first = `${first.replace(/[.\s]+$/, '')}${startsLower ? ' et se plaint' : '. Se plaint'} de ${plainte}`;
+    if (plainte) first = `${first.replace(/[.\s]+$/, '')}${startsLower ? ' et se plaint' : '. Se plaint'} ${de(plainte)}`;
     out.push(sentence(first));
   } else if (plainte) {
-    out.push(sentence(`${intro} qui se plaint de ${plainte}`));
+    out.push(sentence(`${intro} qui se plaint ${de(plainte)}`));
   } else if (s.sexe || !isEmpty(s.age)) {
     out.push(sentence(intro));
   }

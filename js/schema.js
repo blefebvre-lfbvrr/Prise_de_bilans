@@ -820,8 +820,9 @@ export const TABS = [
               { v: 'hydratation', l: 'Hydratation' },
               { v: 'couverture', l: 'Couverture de survie' },
               { v: 'refroidissement', l: 'Refroidissement de la brûlure' },
+              { v: 'avis', l: 'Avis médical' },
             ],
-            out: (v) => (v || []).map((k) => optLabel('gestes', k)),
+            out: (v, s) => gestesHoraires(s),
           },
           area('gestes_autre', 'Autres gestes'),
           area('devenir', 'Devenir', { placeholder: 'Laissée libre après surveillance / évacuation vers…' }),
@@ -919,6 +920,18 @@ export function triOut(fieldName, v) {
   if (!f) return null;
   return v === 'oui' ? f.yes : v === 'non' ? f.no : null;
 }
+
+// Gestes cochés ; ceux qui ont une heure sortent en premier, dans l'ordre chronologique :
+// « 14h32 : Resucrage ».
+export function gestesHoraires(s) {
+  const h = s.gestes_h || {};
+  return (s.gestes || []).map((v, i) => ({ v, i, t: h[v] || '' }))
+    .sort((a, b) => (a.t && b.t ? a.t.localeCompare(b.t) : a.t ? -1 : b.t ? 1 : a.i - b.i))
+    .map((x) => (x.t ? `${fmtTime(x.t)} : ${optLabel('gestes', x.v)}` : optLabel('gestes', x.v)));
+}
+
+// « de » devant une voyelle ou un h muet : « se plaint d’une douleur ».
+export const de = (mot) => (/^[aeiouyéèêàâîïôûh]/i.test(String(mot).trim()) ? `d’${String(mot).trim()}` : `de ${String(mot).trim()}`);
 
 export function joinEt(items) {
   const a = items.filter(Boolean);

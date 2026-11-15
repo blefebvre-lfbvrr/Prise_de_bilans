@@ -1,6 +1,6 @@
 // Cache hors-ligne : l'application fonctionne sans réseau une fois ouverte.
 // Aucune donnée de bilan ne transite par ce fichier.
-const CACHE = 'bilans-v18';
+const CACHE = 'bilans-v19';
 const FILES = [
   './',
   'index.html',
@@ -12,6 +12,7 @@ const FILES = [
   'js/quiz.js',
   'js/revision.js',
   'js/situations.js',
+  'js/outils.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-192.png',

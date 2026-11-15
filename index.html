@@ -25,6 +25,9 @@
       <span class="brand-name" id="brand-name">Prise de bilans</span>
     </button>
     <button type="button" class="victim-switch home-pill" id="btn-home-pill">Accueil</button>
+    <button type="button" class="surv-chip" id="surv-chip" hidden aria-label="Rappel de surveillance">
+      <span class="surv-chip-ico" aria-hidden="true"></span><span id="surv-chip-txt"></span>
+    </button>
     <button type="button" class="victim-switch" id="btn-victims" aria-haspopup="dialog" aria-controls="sheet">
       <span class="victim-dot" id="victim-dot" aria-hidden="true"></span>
       <span class="victim-label" id="victim-label">Victime 1</span>
@@ -55,7 +58,28 @@
           <button type="button" class="btn" id="btn-share-sheet" hidden>Autre app…</button>
         </div>
         <div id="missing" class="missing" hidden></div>
+        <div id="checks" class="checks-box" hidden></div>
       </div>
+
+      <details class="group settings tool" id="avis-box">
+        <summary>
+          <span class="settings-title">Message pour l’avis médical</span>
+          <span class="pill">À lire</span>
+        </summary>
+        <div class="settings-body">
+          <p class="hint">Résumé à lire au régulateur : âge, plainte, détresses, constantes, gestes.</p>
+          <pre class="avis-text" id="avis-text"></pre>
+          <button type="button" class="btn block" id="btn-copy-avis">Copier le message</button>
+        </div>
+      </details>
+
+      <details class="group settings tool" id="note-box">
+        <summary>
+          <span class="settings-title">Noter mon bilan (entraînement)</span>
+          <span class="pill" id="note-pill">/ 20</span>
+        </summary>
+        <div class="settings-body" id="note-body"></div>
+      </details>
 
       <details class="group settings" id="direct-settings">
         <summary>
@@ -91,6 +115,36 @@
           <p class="help">
             iOS peut demander «&nbsp;Ouvrir dans Raccourcis&nbsp;?&nbsp;» : touchez Ouvrir, puis revenez à l’app d’un glissement.
           </p>
+        </div>
+      </details>
+      <details class="group settings" id="options-box">
+        <summary>
+          <span class="settings-title">Options de saisie</span>
+          <span class="pill" id="options-pill">Aucune</span>
+        </summary>
+        <div class="settings-body">
+          <p class="hint">Aides facultatives, désactivées au départ. Le réglage vaut pour tous les bilans.</p>
+          <div class="field tri option-row">
+            <span class="label">Proposer le début du circonstanciel<small>Une phrase construite à partir des détresses et des bilans spé, à reprendre ou non.</small></span>
+            <div class="seg" role="group" data-opt="circ">
+              <button type="button" class="opt" data-v="1" aria-pressed="false">Oui</button>
+              <button type="button" class="opt no" data-v="0" aria-pressed="true">Non</button>
+            </div>
+          </div>
+          <div class="field tri option-row">
+            <span class="label">Suggérer le bilan spé<small>D’après la plainte, et rappel des points à rechercher du Mémo Bilans Spé.</small></span>
+            <div class="seg" role="group" data-opt="spe">
+              <button type="button" class="opt" data-v="1" aria-pressed="false">Oui</button>
+              <button type="button" class="opt no" data-v="0" aria-pressed="true">Non</button>
+            </div>
+          </div>
+          <div class="field tri option-row">
+            <span class="label">Évolution des constantes<small>Dans le bilan complémentaire : ↑ ↓ = par rapport au relevé précédent, en rouge hors des repères.</small></span>
+            <div class="seg" role="group" data-opt="evol">
+              <button type="button" class="opt" data-v="1" aria-pressed="false">Oui</button>
+              <button type="button" class="opt no" data-v="0" aria-pressed="true">Non</button>
+            </div>
+          </div>
         </div>
       </details>
       <div id="report-sections"></div>

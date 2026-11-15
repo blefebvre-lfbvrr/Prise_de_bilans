@@ -1,4 +1,8 @@
-import { TABS, SIGNES_DETRESSE, SURV_FIELDS, has } from './schema.js';
+import { TABS, SIGNES_DETRESSE, SURV_FIELDS, has, optLabel } from './schema.js';
+import { MEMO_SPE } from './cours.js';
+import {
+  SPE_MEMO, avisText, circProposition, coherence, horsNorme, noteBilan, rappelDefaut, rappelEtat, speSuggestions, tendance, valeurInitiale,
+} from './outils.js';
 import {
   arriveeText, buildReport, computeAge, detresseStatus, expandFields, formatTA, gcsTotal, identiteRows, isVisible, suggestions, victimSummary,
 } from './report.js';
@@ -137,6 +141,13 @@ function renderChecks(f) {
       if (cur.includes(o.v)) cur = cur.filter((x) => x !== o.v);
       else if (o.exclusive) cur = [o.v];
       else cur = [...cur.filter((x) => !f.options.find((p) => p.v === x)?.exclusive), o.v];
+      // Gestes : l'heure est notée au moment où on coche (modifiable ensuite).
+      if (f.name === 'gestes') {
+        const t = { ...(state.gestes_h || {}) };
+        for (const k of Object.keys(t)) if (!cur.includes(k)) delete t[k];
+        if (cur.includes(o.v) && !t[o.v]) t[o.v] = nowHHMM();
+        setValue('gestes_h', Object.keys(t).length ? t : '', { silent: true });
+      }
       setValue(f.name, cur);
     });
     b.dataset.v = o.v;
@@ -264,6 +275,7 @@ function renderSurveillance(f) {
   const ref = h('div', { class: 'surv-ref' });
   updateSurvRef = () => renderSurvRef(ref);
   const add = h('button', { type: 'button', class: 'btn primary block' }, '+ Nouvelle série de constantes');
+  const rappel = renderRappel();
   const entries = () => state[f.name] || (state[f.name] = []);
 
   function card(e, i) {
@@ -278,6 +290,14 @@ function renderSurveillance(f) {
       const id = `surv-${i}-${sf.k}-${uid++}`;
       const inp = h('input', { id, type: 'text', inputmode: sf.mode, placeholder: sf.placeholder, autocomplete: 'off' });
       inp.value = e[sf.k] ?? '';
+      const evo = h('span', { class: 'evo', 'aria-hidden': 'true' });
+      const upd = () => {
+        const prev = i ? (state[f.name][i - 1] || {})[sf.k] : valeurInitiale(state, sf.k);
+        const on = settings.evol && String(inp.value).trim() !== '';
+        evo.textContent = on ? tendance(sf.k, inp.value, prev) : '';
+        inp.classList.toggle('hors-norme', on && horsNorme(sf.k, inp.value, state.gly_unite));
+      };
+      evolUpdaters.push(upd);
       inp.addEventListener('input', (ev) => {
         if (sf.ta) {
           const v = formatTA(inp.value, ev.inputType?.startsWith('delete'));
@@ -285,9 +305,11 @@ function renderSurveillance(f) {
         }
         e[sf.k] = inp.value;
         refresh();
+        evolUpdaters.forEach((fn) => fn());
       });
+      upd();
       return h('div', { class: 'surv-field' },
-        h('label', { for: id }, sf.l, sf.suffix ? h('span', { class: 'unit' }, ` ${sf.suffix}`) : null), inp);
+        h('label', { for: id }, sf.l, sf.suffix ? h('span', { class: 'unit' }, ` ${sf.suffix}`) : null, evo), inp);
     }));
 
     const o2 = h('button', { type: 'button', class: 'opt', 'aria-pressed': String(e.sat_sous === 'O2') }, 'Sat sous O2');
@@ -308,6 +330,7 @@ function renderSurveillance(f) {
 
   function draw(focusLast) {
     const arr = state[f.name] || [];
+    evolUpdaters = [];
     list.replaceChildren(...arr.map(card));
     empty.hidden = arr.length > 0;
     const c = list.lastElementChild;
@@ -320,12 +343,53 @@ function renderSurveillance(f) {
 
   add.addEventListener('click', () => {
     entries().push({ heure: nowHHMM(), sat_sous: 'AA' });
+    // Premier contrôle : le rappel démarre de lui-même (sauf s'il a été coupé).
+    if (state.rappel === undefined) state.rappel = { min: rappelDefaut(state) };
+    if (state.rappel) state.rappel.from = Date.now();
     draw(true);
     refresh();
   });
   bind(f.name, () => draw());
-  return h('div', { class: 'field surv' }, ref, list, empty, add);
+  return h('div', { class: 'field surv' }, rappel, ref, list, empty, add);
 }
+
+let evolUpdaters = [];
+
+// Rappel de surveillance : intervalle au choix, compte à rebours depuis le dernier relevé.
+let updateRappelUI = () => {};
+function renderRappel() {
+  const status = h('p', { class: 'rappel-status' });
+  const opts = [0, 5, 10, 15];
+  const seg = h('div', { class: 'seg', role: 'group' }, ...opts.map((m) => {
+    const b = h('button', { type: 'button', class: `opt${m ? '' : ' no'}`, 'aria-pressed': 'false' }, m ? `${m} min` : 'Arrêt');
+    b.addEventListener('click', () => {
+      play(b, 'just');
+      state.rappel = { min: m, from: Date.now() };
+      notifiedDue = 0;
+      refresh();
+    });
+    b.dataset.m = String(m);
+    return b;
+  }));
+  updateRappelUI = () => {
+    const cur = state.rappel === undefined ? null : (state.rappel?.min ?? 0);
+    seg.querySelectorAll('.opt').forEach((b) => b.setAttribute('aria-pressed', String(cur !== null && Number(b.dataset.m) === cur)));
+    const r = rappelEtat(state);
+    status.className = `rappel-status${r && r.reste <= 0 ? ' late' : ''}`;
+    status.textContent = state.rappel === undefined
+      ? `Démarre au premier contrôle : toutes les ${rappelDefaut(state)} min (${rappelDefaut(state) === 5 ? 'victime en détresse' : 'pas de détresse'}).`
+      : !r ? 'Rappel arrêté.'
+        : r.reste <= 0 ? `Contrôle à faire (en retard de ${fmtDuree(-r.reste)}).` : `Prochain contrôle dans ${fmtDuree(r.reste)}.`;
+  };
+  return h('div', { class: 'rappel' },
+    h('div', { class: 'rappel-head' }, h('span', { class: 'label' }, 'Rappel de surveillance'), h('span', { class: 'help' }, 'En détresse : toutes les 5 min. Sinon : 10 à 15 min.')),
+    seg, status);
+}
+
+const fmtDuree = (ms) => {
+  const m = Math.max(0, Math.round(ms / 60000));
+  return m < 1 ? 'moins d’une minute' : `${m} min`;
+};
 
 // Rappel des constantes du bilan initial (étape Bilans), pour suivre l'évolution.
 let updateSurvRef = () => {};
@@ -352,6 +416,10 @@ function renderSurvRef(el) {
 
 let suggestBox;
 let arriveePreview;
+let gestesTimes;
+let circBox;
+let speBox;
+const memoBoxes = [];
 const sdBlocks = [];
 function renderDetresseGroup(g, section) {
   for (const f of g.fields) {
@@ -374,6 +442,25 @@ function renderGroup(g) {
   if (g.id === 'arrivee') {
     arriveePreview = h('p', { class: 'preview' });
     section.append(arriveePreview);
+  }
+  if (g.id === 'gestes') {
+    gestesTimes = h('div', { class: 'gestes-h', hidden: true });
+    section.querySelector('.field').after(gestesTimes);
+  }
+  if (g.fields.some((f) => f.name === 'histoire')) {
+    circBox = h('div', { class: 'propose', hidden: true });
+    speBox = h('div', { class: 'propose', hidden: true });
+    section.querySelector('.field').before(circBox);
+    section.querySelector('.field').before(speBox);
+  }
+  if (g.spe && SPE_MEMO[g.spe]) {
+    const fiches = SPE_MEMO[g.spe].map((id) => MEMO_SPE.find((m) => m.id === id)).filter(Boolean);
+    const memo = h('details', { class: 'memo-spe' },
+      h('summary', {}, 'Points à rechercher (Mémo Bilans Spé)'),
+      ...fiches.map((m) => h('div', {}, h('strong', {}, m.title), h('ul', {}, ...m.items.map((x) => h('li', {}, x))),
+        m.position ? h('p', {}, `Position : ${m.position}`) : null)));
+    section.querySelector('h2').after(memo);
+    memoBoxes.push(memo);
   }
   if (g.spe || g.show) {
     conditionals.push({ el: section, item: { show: (s) => (!g.spe || has(s, 'detresse', g.spe)) && isVisible(g, s) } });
@@ -624,6 +711,10 @@ function refresh({ animate = false } = {}) {
   }
   updateSuggestions();
   updateSurvRef();
+  updateGestesTimes();
+  updatePropositions();
+  updateRappelUI();
+  updateSurvChip();
   if (arriveePreview) {
     const phrase = arriveeText(state);
     arriveePreview.hidden = !phrase;
@@ -633,6 +724,68 @@ function refresh({ animate = false } = {}) {
   updateHeader();
   if (ALL_TABS[current]?.id === 'bilan') renderReport();
   save();
+}
+
+// Heure de chaque geste coché, modifiable.
+let gestesKey = '';
+function updateGestesTimes() {
+  if (!gestesTimes) return;
+  const list = state.gestes || [];
+  gestesTimes.hidden = !list.length;
+  const key = list.join('|');
+  if (key === gestesKey) return;
+  gestesKey = key;
+  gestesTimes.replaceChildren(h('span', { class: 'label' }, 'Heure des gestes'),
+    ...list.map((v) => {
+      const inp = h('input', { type: 'time', 'aria-label': `Heure : ${optLabel('gestes', v)}` });
+      inp.value = state.gestes_h?.[v] || '';
+      inp.addEventListener('input', () => {
+        const t = { ...(state.gestes_h || {}) };
+        if (inp.value) t[v] = inp.value; else delete t[v];
+        setValue('gestes_h', Object.keys(t).length ? t : '');
+      });
+      return h('label', { class: 'gestes-h-row' }, h('span', {}, optLabel('gestes', v)), inp);
+    }));
+}
+
+// Options : proposition de circonstanciel et bilan spé suggéré.
+function updatePropositions() {
+  if (circBox) {
+    const p = settings.circ ? circProposition(state) : '';
+    const show = !!p && (state.histoire || '').trim() !== p;
+    circBox.hidden = !show;
+    if (show) {
+      circBox.replaceChildren(h('span', {}, h('strong', {}, 'Proposition : '), `« … qui ${p} »`),
+        h('button', { type: 'button', onclick: () => setValue('histoire', p) }, state.histoire ? 'Remplacer' : 'Utiliser'));
+    }
+  }
+  if (speBox) {
+    const list = settings.spe ? speSuggestions(state) : [];
+    speBox.hidden = !list.length;
+    speBox.replaceChildren(h('strong', {}, 'Bilan spé suggéré'),
+      ...list.map((x) => h('div', { class: 'row' }, h('span', {}, x.l),
+        h('button', { type: 'button', onclick: () => setValue('detresse', [...(state.detresse || []), x.v]) }, 'Ajouter'))));
+  }
+  memoBoxes.forEach((m) => { m.hidden = !settings.spe; });
+}
+
+// Pastille du rappel dans la barre du haut.
+let notifiedDue = 0;
+function updateSurvChip() {
+  const chip = $('surv-chip');
+  if (!chip) return;
+  const r = rappelEtat(state);
+  chip.hidden = !r;
+  if (!r) return;
+  const late = r.reste <= 0;
+  chip.classList.toggle('late', late);
+  $('surv-chip-txt').textContent = late ? 'Contrôle' : fmtDuree(r.reste).replace('moins d’une minute', '< 1 min');
+  chip.setAttribute('aria-label', late ? 'Contrôle de surveillance à faire' : `Prochain contrôle dans ${fmtDuree(r.reste)}`);
+  if (late && notifiedDue !== r.due) {
+    notifiedDue = r.due;
+    if (navigator.userActivation?.hasBeenActive ?? true) haptic();
+    toast(`Contrôle de surveillance à faire${store.bilans.length > 1 ? ` (${victimTitle(activeBilan())})` : ''}`);
+  }
 }
 
 function updateProgress() {
@@ -750,7 +903,35 @@ function renderReport() {
   const miss = missingItems();
   const box = document.getElementById('missing');
   box.hidden = !miss.length;
-  box.replaceChildren(h('strong', {}, 'À vérifier avant d’enregistrer'), h('ul', {}, ...miss.map((x) => h('li', {}, x))));
+  box.replaceChildren(h('strong', {}, 'Non renseigné'), h('ul', {}, ...miss.map((x) => h('li', {}, x))));
+  renderChecks2();
+  $('avis-text').textContent = avisText(state);
+  if ($('note-box').open) renderNote();
+}
+
+// Vérifications de cohérence : chaque point mène à l'étape à corriger.
+function renderChecks2() {
+  const list = coherence(state);
+  const box = $('checks');
+  box.hidden = !list.length;
+  box.replaceChildren(h('strong', {}, `À vérifier avant d’enregistrer (${list.length})`),
+    ...list.map((x) => h('button', { type: 'button', class: 'check-row', onclick: () => go(ALL_TABS.findIndex((t) => t.id === x.tab)) },
+      h('span', {}, x.msg), h('span', { class: 'go', 'aria-hidden': 'true' }))));
+  return list;
+}
+
+function renderNote() {
+  const r = noteBilan(state);
+  $('note-pill').textContent = `${String(r.note).replace('.', ',')} / 20`;
+  const todo = r.criteres.filter((c) => !c.ok);
+  $('note-body').replaceChildren(
+    h('p', { class: `score note ${r.note >= 16 ? 'good' : r.note >= 10 ? 'mid' : 'low'}` }, h('strong', {}, String(r.note).replace('.', ',')), ' / 20'),
+    h('p', { class: 'hint' }, 'Note indicative : complétude du bilan et cohérence (−0,5 par point à vérifier). Elle ne juge pas le contenu clinique.'),
+    todo.length ? h('ul', { class: 'crit-list' }, ...todo.map((c) => h('li', { class: 'crit is-missing' },
+      h('span', { class: 'crit-mark', 'aria-hidden': 'true' }, '✗'),
+      h('button', { type: 'button', class: 'crit-txt link', onclick: () => go(ALL_TABS.findIndex((t) => t.id === c.tab)) }, h('strong', {}, c.label), h('span', {}, c.hint)),
+      h('span', { class: 'crit-pts' }, `0 / ${String(c.pts).replace('.', ',')}`)))) : h('p', {}, 'Tous les éléments attendus sont là.'),
+    r.malus ? h('p', { class: 'hint' }, `Points à vérifier : −${String(r.malus).replace('.', ',')}`) : null);
 }
 
 // ---------------------------------------------------------------------------
@@ -789,7 +970,7 @@ async function copy(text, msg = 'Copié', btn) {
 // Enregistrement direct : un raccourci iOS (app Raccourcis) crée la note.
 // ---------------------------------------------------------------------------
 const SETTINGS_KEY = 'prise-de-bilans:reglages';
-const settings = { direct: false, shortcut: 'PdB' };
+const settings = { direct: false, shortcut: 'PdB', circ: false, spe: false, evol: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); } catch { /* ignoré */ }
 
 function saveSettings() {
@@ -811,6 +992,11 @@ function updateSettingsUI() {
   if ($('shortcut-name').value !== settings.shortcut) $('shortcut-name').value = settings.shortcut;
   $('btn-share').textContent = settings.direct ? 'Créer la note' : 'Enregistrer dans Notes';
   $('btn-share-sheet').hidden = !settings.direct;
+  const on = ['circ', 'spe', 'evol'].filter((k) => settings[k]);
+  document.querySelectorAll('#options-box [data-opt]').forEach((seg) => seg.querySelectorAll('.opt')
+    .forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.v === '1') === !!settings[seg.dataset.opt]))));
+  $('options-pill').textContent = on.length ? `${on.length} activée${on.length > 1 ? 's' : ''}` : 'Aucune';
+  $('options-pill').classList.toggle('on', on.length > 0);
 }
 
 function setupSettings() {
@@ -821,10 +1007,41 @@ function setupSettings() {
     runShortcut('Test Prise de bilans\nSi cette note apparaît dans Notes, l’enregistrement direct fonctionne. Vous pouvez la supprimer.');
   });
   $('btn-share-sheet').addEventListener('click', () => shareSheet());
+  document.querySelectorAll('#options-box [data-opt]').forEach((seg) => {
+    seg.querySelectorAll('.opt').forEach((b) => b.addEventListener('click', () => {
+      play(b, 'just');
+      settings[seg.dataset.opt] = b.dataset.v === '1';
+      saveSettings();
+      updateSettingsUI();
+      refresh();
+      evolUpdaters.forEach((fn) => fn());
+    }));
+  });
+  $('btn-copy-avis').addEventListener('click', (e) => copy(avisText(state), 'Message copié', e.currentTarget));
+  $('note-box').addEventListener('toggle', () => { if ($('note-box').open) renderNote(); });
+  setInterval(() => { updateSurvChip(); updateRappelUI(); }, 15000);
+  $('surv-chip').addEventListener('click', () => {
+    haptic();
+    if (mode !== 'bilan') setMode('bilan');
+    go(ALL_TABS.findIndex((t) => t.id === 'complementaire'));
+  });
   updateSettingsUI();
 }
 
+let shareArmed = 0;
 async function share() {
+  // Avant d'enregistrer : s'il reste des points à vérifier, on les montre d'abord.
+  if (Date.now() > shareArmed && coherence(state).length) {
+    shareArmed = Date.now() + 8000;
+    if (ALL_TABS[current].id !== 'bilan') go(ALL_TABS.length - 1);
+    const box = $('checks');
+    renderChecks2();
+    requestAnimationFrame(() => { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); play(box, 'shake'); });
+    haptic();
+    toast('Points à vérifier. Touchez à nouveau pour enregistrer quand même.');
+    return;
+  }
+  shareArmed = 0;
   if (settings.direct) {
     runShortcut(buildReport(state).full);
     toast('Création de la note…');
@@ -907,6 +1124,7 @@ function renderVictims() {
       h('button', { type: 'button', class: 'open', onclick: () => { closeSheet(); if (b.id !== store.activeId) switchTo(b.id); } },
         h('span', { class: 'line1' }, h('span', { class: 'n' }, `Victime ${b.n}`), v.name ? h('span', { class: 'name' }, v.name) : null),
         h('span', { class: 'sub' }, [v.who, v.heure, v.types.join(', ')].filter(Boolean).join(' · ') || 'Bilan vide'),
+        rappelEtat(b.state)?.reste <= 0 ? h('span', { class: 'status detresse' }, 'Contrôle de surveillance à faire') : null,
         h('span', { class: `status ${st.level}` }, st.text)),
       del);
     twoStep(del, 'Confirmer', () => {
