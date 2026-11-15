@@ -26,7 +26,7 @@ export function initRevision(api) {
   try { Object.assign(prog, JSON.parse(localStorage.getItem(KEY)) || {}); } catch { /* ignoré */ }
   const saveProg = () => { try { localStorage.setItem(KEY, JSON.stringify(prog)); } catch { /* ignoré */ } };
   // Chapitre ouvert, pour le retrouver après un rechargement.
-  const nav = { chapitre: null, situation: null, corrige: false };
+  const nav = { chapitre: null, situation: null, corrige: false, random: false };
   try { Object.assign(nav, JSON.parse(sessionStorage.getItem(NAV_KEY)) || {}); } catch { /* ignoré */ }
   const saveNav = () => { try { sessionStorage.setItem(NAV_KEY, JSON.stringify(nav)); } catch { /* ignoré */ } };
 
@@ -53,7 +53,7 @@ export function initRevision(api) {
       card('', ICONS.quiz, 'Faire un quiz', `${QUIZ_LEN} questions par thème, corrigées au fur et à mesure.`,
         [best ? `Meilleur score ${best} / ${QUIZ_LEN}` : 'Pas encore de score'], () => setMode('quiz')),
       card('', ICONS.situation, 'Mise en situation', 'Un cas concret : rédigez le bilan complet, il est noté sur 20.',
-        [bestNote() != null ? `Meilleure note ${fmtNote(bestNote())} / 20` : `${SITUATIONS.length} situations`], () => { nav.situation = null; setMode('situation'); }),
+        [bestNote() != null ? `Meilleure note ${fmtNote(bestNote())} / 20` : `${SITUATIONS.length} situations, mode au hasard`], () => { nav.situation = null; setMode('situation'); }),
       h('p', { class: 'home-foot' }, 'Bilans, lecture et scores restent sur ce téléphone. Rien n’est envoyé sur Internet.')));
   }
 
@@ -235,25 +235,47 @@ export function initRevision(api) {
   }
   const noteClass = (n) => (n >= 16 ? 'good' : n >= 10 ? 'mid' : 'low');
 
+  // Tirage au hasard : d'abord les cas jamais faits, sinon tous sauf celui qu'on vient de faire.
+  function pickRandom() {
+    const notDone = SITUATIONS.filter((x) => !prog.notes?.[x.id]);
+    const pool = notDone.length ? notDone : SITUATIONS.filter((x) => x.id !== nav.situation);
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  function startRandom() {
+    const sc = pickRandom();
+    drafts[sc.id] = { circ: '', signes: '', gestes: '' }; saveDrafts();
+    haptic(); renderCas(sc.id, true);
+  }
+
   function renderSituations() {
-    nav.situation = null; nav.corrige = false; saveNav();
+    nav.situation = null; nav.corrige = false; nav.random = false; saveNav();
+    const done = SITUATIONS.filter((x) => prog.notes?.[x.id]).length;
+    const cats = [...new Set(SITUATIONS.map((x) => x.cat))];
+    const row = (sc) => {
+      const n = prog.notes?.[sc.id];
+      const started = drafts[sc.id] && Object.values(drafts[sc.id]).some((x) => x && x.trim());
+      return h('button', { type: 'button', class: 'toc-row', onclick: () => { haptic(); renderCas(sc.id); } },
+        h('span', { class: 'toc-txt' }, h('strong', {}, sc.title), h('span', {}, `${sc.niveau}${started && !n ? ' · brouillon en cours' : ''}`)),
+        h('span', { class: `toc-state${n ? ` score ${noteClass(n.best)}` : ''}` }, n ? `${fmtNote(n.best)} / 20` : ''));
+    };
     fill(views.situation, h('div', { class: 'lesson' },
       h('h1', {}, 'Mise en situation'),
       h('p', { class: 'lead' }, 'Lisez le contexte, puis rédigez le bilan comme dans ARGOS : circonstanciel, signes particuliers, gestes effectués. Le barème le note sur 20 et liste ce qui manque.'),
-      h('div', { class: 'toc' }, ...SITUATIONS.map((sc) => {
-        const n = prog.notes?.[sc.id];
-        const started = drafts[sc.id] && Object.values(drafts[sc.id]).some((x) => x && x.trim());
-        return h('button', { type: 'button', class: 'toc-row', onclick: () => { haptic(); renderCas(sc.id); } },
-          h('span', { class: 'toc-txt' }, h('strong', {}, sc.title), h('span', {}, `${sc.cat} · ${sc.niveau}${started && !n ? ' · brouillon en cours' : ''}`)),
-          h('span', { class: `toc-state${n ? ` score ${noteClass(n.best)}` : ''}` }, n ? `${fmtNote(n.best)} / 20` : ''));
-      }))));
+      h('button', { type: 'button', class: 'random-card', onclick: startRandom },
+        h('span', { class: 'random-ico', 'aria-hidden': 'true' }, '?'),
+        h('span', { class: 'home-txt' }, h('strong', {}, 'Situation au hasard'),
+          h('span', {}, 'Le thème reste caché jusqu’à la correction, comme sur le terrain.')),
+        h('span', { class: 'go', 'aria-hidden': 'true' })),
+      h('p', { class: 'lead small' }, `${done} situation${done > 1 ? 's' : ''} faite${done > 1 ? 's' : ''} sur ${SITUATIONS.length}`),
+      h('div', { class: 'meter' }, h('span', { style: `width:${(done / SITUATIONS.length) * 100}%` })),
+      ...cats.flatMap((c) => [h('h2', { class: 'sit-cat' }, c), h('div', { class: 'toc' }, ...SITUATIONS.filter((x) => x.cat === c).map(row))])));
   }
 
   const ctxBlock = (title, ...body) => h('section', { class: 'sit-block' }, h('p', { class: 'part' }, title), ...body);
 
-  function renderCas(id) {
+  function renderCas(id, random = nav.random) {
     const sc = SITUATIONS.find((x) => x.id === id) || SITUATIONS[0];
-    nav.situation = sc.id; nav.corrige = false; saveNav();
+    nav.situation = sc.id; nav.corrige = false; nav.random = !!random; saveNav();
     const d = drafts[sc.id] || (drafts[sc.id] = { circ: '', signes: '', gestes: '' });
     const fields = [
       ['circ', 'Circonstanciel', 'Homme / Femme de … ans qui… La victime se présente…', 4],
@@ -273,8 +295,8 @@ export function initRevision(api) {
     } }, 'Corriger mon bilan');
     fill(views.situation, h('div', { class: 'lesson sit' },
       crumb('Situations', renderSituations),
-      h('p', { class: 'eyebrow' }, `${sc.cat} · ${sc.niveau}`),
-      h('h1', {}, sc.title),
+      h('p', { class: 'eyebrow' }, random ? 'Situation au hasard' : `${sc.cat} · ${sc.niveau}`),
+      h('h1', {}, random ? 'Que se passe-t-il ?' : sc.title),
       h('div', { class: 'sit-ctx' },
         ctxBlock('Le contexte', h('p', { class: 'sit-lieu' }, sc.lieu), h('p', {}, sc.appel)),
         ctxBlock('Ce que vous entendez', ...sc.raconte.map((x) => h('p', { class: 'sit-quote' }, x))),
@@ -311,12 +333,12 @@ export function initRevision(api) {
     const acquired = r.items.filter((i) => i.status === 'ok' && !i.penalty);
     fill(views.situation, h('div', { class: 'lesson sit' },
       crumb('Situations', renderSituations),
-      h('p', { class: 'eyebrow' }, sc.title),
+      h('p', { class: 'eyebrow' }, nav.random ? `${sc.cat} · ${sc.title}` : sc.title),
       h('p', { class: `score note ${noteClass(r.note)}` }, h('strong', {}, fmtNote(r.note)), ' / 20'),
       h('p', { class: 'lead' }, msg + (prev != null && r.note > prev ? ' Nouvelle meilleure note.' : '')),
       h('div', { class: 'lesson-nav' },
         h('button', { type: 'button', class: 'btn primary', onclick: () => renderCas(sc.id) }, 'Compléter'),
-        h('button', { type: 'button', class: 'btn', onclick: renderSituations }, 'Autres cas')),
+        nav.random ? h('button', { type: 'button', class: 'btn', onclick: startRandom }, 'Au hasard') : h('button', { type: 'button', class: 'btn', onclick: renderSituations }, 'Autres cas')),
       todo.length ? h('h2', {}, `Ce qu’il manque (${todo.length})`) : h('h2', {}, 'Rien ne manque'),
       ...groups,
       acquired.length ? accordion(`Acquis (${acquired.length})`, null, h('ul', { class: 'crit-list' }, ...acquired.map(row))) : null,

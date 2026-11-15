@@ -973,6 +973,16 @@ body[data-mode="accueil"] .brand { cursor: default; }
 .review-why { color: var(--muted); margin: 0 !important; }
 
 /* Mise en situation */
+.random-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; margin: 4px 0 18px; padding: 16px;
+  border: 0; border-radius: 20px; background: var(--bar-bg); color: var(--bar-fg); box-shadow: var(--shadow);
+  text-align: left; transition: transform .15s var(--ease);
+}
+.random-card:active { transform: scale(.98); }
+.random-ico { flex: none; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 16px; background: var(--accent); color: var(--accent-ink); font-size: 30px; font-weight: 900; }
+.random-card .home-txt > span { color: color-mix(in srgb, var(--bar-fg) 78%, transparent); }
+.random-card .go { flex: none; width: 10px; height: 10px; border-right: 2px solid currentColor; border-top: 2px solid currentColor; transform: rotate(45deg); opacity: .7; }
+.view h2.sit-cat { margin: 20px 0 8px; color: var(--muted); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .sit-ctx { display: grid; gap: 1px; margin: 10px 0 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--border); overflow: hidden; }
 .sit-block { padding: 4px 14px 10px; background: var(--card); }
 .sit-block .part { margin: 8px 0 6px !important; }
